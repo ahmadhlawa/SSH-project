@@ -12,7 +12,6 @@ import { formatDateTime } from "../services/format.js";
 const recommendations = {
   Gas: "Inspect ventilation, move worker away from exposure, and verify gas sensor reading.",
   Temperature: "Provide cooling break, water, and check heat exposure in the current zone.",
-  Humidity: "Check ventilation and moisture exposure, then move the worker to a drier area if needed.",
   Fall: "Dispatch first responder and avoid moving the worker until assessed.",
   SOS: "Contact the worker and send supervisor support immediately."
 };
@@ -64,7 +63,7 @@ export default function WorkerDetails() {
             <div className="profile-grid">
               <Metric label="Zone" value={worker.zone} />
               <Metric label="Temperature" value={`${worker.temperature}C`} tone={worker.temperature >= thresholds.temperatureDanger ? "danger" : worker.temperature >= thresholds.temperatureWarning ? "warning" : ""} />
-              <Metric label="Humidity" value={`${worker.humidity}%`} tone={worker.humidity >= thresholds.humidityDanger ? "danger" : worker.humidity >= thresholds.humidityWarning ? "warning" : ""} />
+              <Metric label="Humidity" value={`${worker.humidity}%`} />
               <Metric label="Gas Value" value={worker.gasValue} tone={worker.gasValue >= thresholds.gasDanger ? "danger" : worker.gasValue >= thresholds.gasWarning ? "warning" : ""} />
               <Metric label="Fall Detected" value={worker.fallDetected ? "YES" : "No"} tone={worker.fallDetected ? "danger" : ""} />
               <Metric label="SOS Status" value={worker.sosPressed ? "Pressed" : "No"} tone={worker.sosPressed ? "danger" : ""} />

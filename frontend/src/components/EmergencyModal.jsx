@@ -2,8 +2,9 @@ import { AlertOctagon, BellOff, Eye, ShieldAlert } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSafety } from "../context/SafetyContext.jsx";
+import { formatDateTime } from "../services/format.js";
 
-export default function EmergencyModal({ worker }) {
+export default function EmergencyModal({ worker, alert }) {
   const navigate = useNavigate();
   const { alarmEnabled, acknowledgeEmergency } = useSafety();
   const audioRef = useRef(null);
@@ -50,6 +51,9 @@ export default function EmergencyModal({ worker }) {
 
   if (!worker) return null;
 
+  const dangerType = alert?.type || worker.alertType || "Danger";
+  const severity = alert?.severity || worker.severity || "Critical";
+
   const handleAcknowledge = async () => {
     stopAlarm();
     await acknowledgeEmergency(worker.id);
@@ -62,30 +66,33 @@ export default function EmergencyModal({ worker }) {
           <AlertOctagon size={42} />
           <div>
             <span>Emergency Alert</span>
-            <h2>{worker.alertType || "Danger"} detected</h2>
+            <h2>{dangerType} detected</h2>
           </div>
         </div>
         <div className="emergency-worker">
           <div>
             <strong>{worker.name}</strong>
-            <span>{worker.id} · {worker.helmetId}</span>
+            <span>{worker.id} - {worker.helmetId}</span>
           </div>
-          <div className="emergency-severity">{worker.severity || "Critical"}</div>
+          <div className="emergency-severity">{severity}</div>
         </div>
         <div className="emergency-grid">
-          <span>Temperature <strong>{worker.temperature}°C</strong></span>
+          <span>Danger Type <strong>{dangerType}</strong></span>
+          <span>Severity <strong>{severity}</strong></span>
+          <span>Temperature <strong>{worker.temperature} C</strong></span>
           <span>Gas <strong>{worker.gasValue}</strong></span>
           <span>Humidity <strong>{worker.humidity}%</strong></span>
           <span>Fall <strong>{worker.fallDetected ? "YES" : "No"}</strong></span>
           <span>SOS <strong>{worker.sosPressed ? "Pressed" : "No"}</strong></span>
           <span>Zone <strong>{worker.zone}</strong></span>
+          <span>Timestamp <strong>{formatDateTime(alert?.timestamp || worker.lastUpdate)}</strong></span>
         </div>
         <div className="emergency-actions">
           <button className="btn btn-dark" onClick={() => navigate(`/workers/${worker.id}`)}>
             <Eye size={18} /> View Worker
           </button>
           <button className="btn btn-light" onClick={handleAcknowledge}>
-            <BellOff size={18} /> Acknowledge
+            <BellOff size={18} /> تم الاستعلام
           </button>
         </div>
         <div className="emergency-note">

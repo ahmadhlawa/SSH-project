@@ -115,6 +115,34 @@ The system receives real helmet readings through `POST /api/helmet/readings`. GP
 
 Helmet readings are also sampled to `backend/logs.csv` once every 15 minutes per worker. Worker detail pages read those CSV snapshots to render the sensor chart.
 
+## Fall Detection and Alarm Logic
+
+Fall detection runs on the ESP32 with MPU6050 accelerometer and gyroscope readings. The firmware converts raw accelerometer values to G-force, calculates total acceleration, and also calculates gyroscope magnitude:
+
+```cpp
+const float IMPACT_G_THRESHOLD = 2.5;
+const float STABLE_MIN_G = 0.7;
+const float STABLE_MAX_G = 1.3;
+const float GYRO_ROTATION_THRESHOLD = 30000;
+
+const unsigned long ALARM_CYCLE_DURATION_MS = 5000;
+const unsigned long ALARM_REPEAT_INTERVAL_MS = 7000;
+```
+
+A possible fall starts when total acceleration is above `IMPACT_G_THRESHOLD` or gyro magnitude is above `GYRO_ROTATION_THRESHOLD`. After about 1.2 seconds, the MPU6050 is read again. If total acceleration is stable between `STABLE_MIN_G` and `STABLE_MAX_G`, the fall is confirmed and sent to `POST /api/helmet/readings`.
+
+Humidity is sent and displayed only. Danger state is caused by gas danger, temperature danger, fall detection, or SOS.
+
+The website emergency modal and browser alarm stay active until the supervisor clicks `تم الاستعلام` / Acknowledge. Acknowledgement updates the backend alert state and stops the website alarm.
+
+The helmet checks acknowledgement through:
+
+```text
+GET /api/helmet/alarm-state?workerId=W-1001
+```
+
+While danger remains active and unacknowledged, the helmet buzzer and LEDs run 5-second intermittent alarm cycles, then wait 7 seconds before repeating. Once the dashboard acknowledges the alert, the backend returns `acknowledged=true`, and the ESP32 stops the buzzer/LEDs immediately.
+
 ## API Endpoints
 
 - `GET /api/health` - backend health and demo mode status
@@ -188,6 +216,20 @@ esp32/smart_helmet_http_post_example.ino
 5. Open the map page and verify the active helmet appears in Jerusalem.
 6. Trigger a real gas or temperature danger reading from the helmet to demonstrate realtime emergency behavior.
 7. Use Settings to show alarm toggle and thresholds.
+
+## Testing Checklist
+
+1. Start the backend: `cd backend && npm run dev`.
+2. Start the frontend: `cd frontend && npm run dev`.
+3. Make sure `DEMO_MODE=false`.
+4. Power the ESP32 using stable 5V power.
+5. Watch Serial Monitor: `totalG` should be near `1.0` while stable, `gyroMagnitude` should change during movement, and fall confirmation messages should appear only during strong movement or impact.
+6. Trigger danger with high gas, high temperature, simulated fall, or SOS.
+7. Confirm the website emergency modal appears, browser alarm continues, and the modal does not close automatically.
+8. Confirm the ESP32 buzzer/LEDs alarm for 5 seconds, wait 7 seconds, and repeat while danger remains active and unacknowledged.
+9. Click `تم الاستعلام` / Acknowledge. The website alarm should stop, the modal should close, the backend should mark the alert acknowledged, and the ESP32 should stop immediately.
+10. Return readings to safe. The worker should become SAFE and `alarmActive` should become `false`.
+11. Trigger a new danger again. A new alarm should appear and the ESP32 should alarm again.
 
 ## Future ESP32 Integration
 

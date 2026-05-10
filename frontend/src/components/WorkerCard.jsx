@@ -35,7 +35,6 @@ export default function WorkerCard({ worker }) {
         <Metric
           label="Humidity"
           value={`${worker.humidity}%`}
-          tone={worker.humidity >= thresholds.humidityDanger ? "danger" : worker.humidity >= thresholds.humidityWarning ? "warning" : ""}
         />
       </div>
       <div className="worker-card-footer">

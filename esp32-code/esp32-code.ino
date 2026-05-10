@@ -2,6 +2,7 @@
 #include <HTTPClient.h>
 #include <Wire.h>
 #include <DHT.h>
+#include <math.h>
 
 #define MPU6050_ADDR 0x68
 
@@ -43,29 +44,32 @@ const unsigned long SEND_INTERVAL = 3000;
 
 const unsigned long LED_FLASH_INTERVAL = 180;
 const unsigned long BUZZER_PULSE_INTERVAL = 220;
-const unsigned long ALARM_DURATION = 10000;
-const unsigned long ALARM_COOLDOWN = 120000;
-const unsigned long ACK_POLL_INTERVAL = 1000;
+const unsigned long ALARM_CYCLE_DURATION_MS = 5000;
+const unsigned long ALARM_REPEAT_INTERVAL_MS = 7000;
+const unsigned long ALARM_STATE_POLL_INTERVAL_MS = 2000;
+const unsigned long FALL_CONFIRMATION_DELAY_MS = 1200;
 
 unsigned long lastLedFlashTime = 0;
 unsigned long lastBuzzerPulseTime = 0;
-unsigned long alarmStartedAt = 0;
-unsigned long lastAlarmStartedAt = 0;
-unsigned long lastAckPollTime = 0;
+unsigned long alarmCycleStartedAt = 0;
+unsigned long lastAlarmCycleEndedAt = 0;
+unsigned long lastAlarmStatePollTime = 0;
 
 bool ledsOn = false;
 bool buzzerOn = false;
-bool alarmRunning = false;
-bool alarmSeenByBackend = false;
+bool alarmCycleRunning = false;
+bool backendAlarmActive = false;
+bool backendAlarmAcknowledged = false;
 bool previousDangerAlert = false;
 
 // ================= Thresholds =================
 const int GAS_DANGER_THRESHOLD = 1800;
 const float TEMP_DANGER_THRESHOLD = 40.0;
-const float HUMIDITY_DANGER_THRESHOLD = 85.0;
 
-// Adjust this after field testing the MPU6050 placement.
-const long FALL_ACCEL_THRESHOLD = 30000;
+const float IMPACT_G_THRESHOLD = 2.5;
+const float STABLE_MIN_G = 0.7;
+const float STABLE_MAX_G = 1.3;
+const float GYRO_ROTATION_THRESHOLD = 30000;
 
 // ================= Output Helpers =================
 void setAllLeds(bool active) {
@@ -138,34 +142,95 @@ void readMPU6050() {
   }
 }
 
+float calculateTotalG() {
+  float axG = AcX / 16384.0;
+  float ayG = AcY / 16384.0;
+  float azG = AcZ / 16384.0;
+
+  return sqrt((axG * axG) + (ayG * ayG) + (azG * azG));
+}
+
+float calculateGyroMagnitude() {
+  float gx = GyX;
+  float gy = GyY;
+  float gz = GyZ;
+
+  return sqrt((gx * gx) + (gy * gy) + (gz * gz));
+}
+
+void printMPUCalibrationValues() {
+  float axG = AcX / 16384.0;
+  float ayG = AcY / 16384.0;
+  float azG = AcZ / 16384.0;
+  float totalG = calculateTotalG();
+  float gyroMagnitude = calculateGyroMagnitude();
+
+  Serial.print("axG: ");
+  Serial.print(axG, 3);
+  Serial.print(" ayG: ");
+  Serial.print(ayG, 3);
+  Serial.print(" azG: ");
+  Serial.print(azG, 3);
+  Serial.print(" totalG: ");
+  Serial.print(totalG, 3);
+  Serial.print(" gyroMagnitude: ");
+  Serial.println(gyroMagnitude, 1);
+}
+
 bool detectFall() {
-  long totalAccel = abs((long)AcX) + abs((long)AcY) + abs((long)AcZ);
+  float totalG = calculateTotalG();
+  float gyroMagnitude = calculateGyroMagnitude();
+  bool possibleImpact = totalG > IMPACT_G_THRESHOLD;
+  bool abnormalRotation = gyroMagnitude > GYRO_ROTATION_THRESHOLD;
 
-  Serial.print("Total Accel: ");
-  Serial.println(totalAccel);
+  printMPUCalibrationValues();
 
-  return totalAccel > FALL_ACCEL_THRESHOLD;
+  if (!possibleImpact && !abnormalRotation) {
+    return false;
+  }
+
+  Serial.println("Possible fall/impact detected");
+  delay(FALL_CONFIRMATION_DELAY_MS);
+
+  readMPU6050();
+  printMPUCalibrationValues();
+
+  float confirmedTotalG = calculateTotalG();
+  bool stableAfterImpact = confirmedTotalG >= STABLE_MIN_G && confirmedTotalG <= STABLE_MAX_G;
+
+  if (stableAfterImpact) {
+    Serial.println("Fall confirmed");
+    return true;
+  }
+
+  Serial.println("Impact ignored");
+  return false;
 }
 
 // ================= Local Alert =================
-void updateLedFlasher(bool dangerActive) {
+void updateAlarmOutputs() {
   unsigned long now = millis();
-
-  if (!dangerActive) {
-    setAllLeds(false);
-    return;
-  }
 
   if (now - lastLedFlashTime >= LED_FLASH_INTERVAL) {
     lastLedFlashTime = now;
     setAllLeds(!ledsOn);
   }
+
+  if (now - lastBuzzerPulseTime >= BUZZER_PULSE_INTERVAL) {
+    lastBuzzerPulseTime = now;
+    setBuzzer(!buzzerOn);
+  }
 }
 
-bool isAlarmAcknowledgedByBackend() {
+void updateBackendAlarmStateFromBody(String responseBody) {
+  backendAlarmActive = responseBody.indexOf("\"alarmActive\":true") >= 0;
+  backendAlarmAcknowledged = responseBody.indexOf("\"acknowledged\":true") >= 0;
+}
+
+void pollBackendAlarmState() {
   if (WiFi.status() != WL_CONNECTED) {
     connectToWiFi();
-    if (WiFi.status() != WL_CONNECTED) return false;
+    if (WiFi.status() != WL_CONNECTED) return;
   }
 
   HTTPClient http;
@@ -182,72 +247,53 @@ bool isAlarmAcknowledgedByBackend() {
   Serial.println(responseBody);
 
   bool requestOk = responseCode >= 200 && responseCode < 300;
-  bool backendHasActiveAlarm = responseBody.indexOf("\"alarmActive\":true") >= 0;
-  bool backendAcknowledgedAlarm = responseBody.indexOf("\"acknowledged\":true") >= 0;
-
-  if (requestOk && backendHasActiveAlarm) {
-    alarmSeenByBackend = true;
-  }
-
-  return requestOk && alarmSeenByBackend && backendAcknowledgedAlarm;
+  if (requestOk) updateBackendAlarmStateFromBody(responseBody);
 }
 
-bool canStartDangerAlarm() {
+void startAlarmCycle() {
   unsigned long now = millis();
-  return lastAlarmStartedAt == 0 || now - lastAlarmStartedAt >= ALARM_COOLDOWN;
-}
-
-void startDangerAlarm() {
-  unsigned long now = millis();
-  alarmRunning = true;
-  alarmStartedAt = now;
-  lastAlarmStartedAt = now;
+  alarmCycleRunning = true;
+  alarmCycleStartedAt = now;
   lastBuzzerPulseTime = now;
-  lastAckPollTime = now;
-  alarmSeenByBackend = false;
+  lastLedFlashTime = now;
   setBuzzer(true);
-  Serial.println("Danger buzzer started.");
+  setAllLeds(true);
+  Serial.println("Danger alarm cycle started.");
 }
 
-void stopDangerAlarm() {
-  if (alarmRunning) {
-    Serial.println("Danger buzzer stopped.");
+void stopAlarmCycle(bool resetRepeatTimer) {
+  if (alarmCycleRunning) {
+    Serial.println("Danger alarm cycle stopped.");
   }
-  alarmRunning = false;
-  alarmSeenByBackend = false;
+  alarmCycleRunning = false;
   setBuzzer(false);
+  setAllLeds(false);
+  if (resetRepeatTimer) lastAlarmCycleEndedAt = millis();
 }
 
 void updateBuzzerAlarm(bool dangerActive) {
   unsigned long now = millis();
+  bool backendAllowsAlarm = backendAlarmActive && !backendAlarmAcknowledged;
+  bool shouldAlarm = dangerActive && backendAllowsAlarm;
 
-  if (!dangerActive) {
-    stopDangerAlarm();
+  if (backendAlarmAcknowledged || !shouldAlarm) {
+    stopAlarmCycle(false);
     return;
   }
 
-  if (!alarmRunning) {
-    if (canStartDangerAlarm()) startDangerAlarm();
-    return;
-  }
-
-  if (now - alarmStartedAt >= ALARM_DURATION) {
-    stopDangerAlarm();
-    return;
-  }
-
-  if (now - lastAckPollTime >= ACK_POLL_INTERVAL) {
-    lastAckPollTime = now;
-    if (isAlarmAcknowledgedByBackend()) {
-      stopDangerAlarm();
-      return;
+  if (!alarmCycleRunning) {
+    if (lastAlarmCycleEndedAt == 0 || now - lastAlarmCycleEndedAt >= ALARM_REPEAT_INTERVAL_MS) {
+      startAlarmCycle();
     }
+    return;
   }
 
-  if (now - lastBuzzerPulseTime >= BUZZER_PULSE_INTERVAL) {
-    lastBuzzerPulseTime = now;
-    setBuzzer(!buzzerOn);
+  if (now - alarmCycleStartedAt >= ALARM_CYCLE_DURATION_MS) {
+    stopAlarmCycle(true);
+    return;
   }
+
+  updateAlarmOutputs();
 }
 
 // ================= Send Reading to Backend =================
@@ -303,6 +349,9 @@ void sendReadingToBackend(
   String response = http.getString();
   Serial.println("Backend Response:");
   Serial.println(response);
+  if (httpResponseCode >= 200 && httpResponseCode < 300) {
+    updateBackendAlarmStateFromBody(response);
+  }
 
   http.end();
 }
@@ -349,10 +398,9 @@ void loop() {
   bool fallDetected = detectFall();
   bool sosPressed = false;
 
-  bool gasAlert = gasValue > GAS_DANGER_THRESHOLD;
-  bool tempAlert = !isnan(temperature) && temperature > TEMP_DANGER_THRESHOLD;
-  bool humidityAlert = !isnan(humidity) && humidity > HUMIDITY_DANGER_THRESHOLD;
-  bool dangerAlert = gasAlert || tempAlert || humidityAlert || fallDetected || sosPressed;
+  bool gasAlert = gasValue >= GAS_DANGER_THRESHOLD;
+  bool tempAlert = !isnan(temperature) && temperature >= TEMP_DANGER_THRESHOLD;
+  bool dangerAlert = gasAlert || tempAlert || fallDetected || sosPressed;
 
   Serial.println("-------------");
 
@@ -393,7 +441,11 @@ void loop() {
     lastSendTime = millis();
   }
 
-  updateLedFlasher(dangerAlert);
+  if (millis() - lastAlarmStatePollTime >= ALARM_STATE_POLL_INTERVAL_MS) {
+    lastAlarmStatePollTime = millis();
+    pollBackendAlarmState();
+  }
+
   updateBuzzerAlarm(dangerAlert);
 
   if (millis() - lastSendTime >= SEND_INTERVAL) {

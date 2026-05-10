@@ -5,7 +5,7 @@ import Sidebar from "./Sidebar.jsx";
 import { useSafety } from "../context/SafetyContext.jsx";
 
 export default function Layout() {
-  const { activeDangerWorker } = useSafety();
+  const { activeDangerWorker, activeDangerAlert } = useSafety();
 
   return (
     <div className={`app-shell ${activeDangerWorker ? "emergency-mode" : ""}`}>
@@ -14,7 +14,7 @@ export default function Layout() {
         <ConnectionStatus />
         <Outlet />
       </main>
-      <EmergencyModal worker={activeDangerWorker} />
+      <EmergencyModal worker={activeDangerWorker} alert={activeDangerAlert} />
     </div>
   );
 }

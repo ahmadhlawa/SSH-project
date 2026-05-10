@@ -15,8 +15,6 @@ export function SafetyProvider({ children }) {
   const [thresholds, setThresholds] = useState({
     temperatureWarning: 37,
     temperatureDanger: 40,
-    humidityWarning: 70,
-    humidityDanger: 85,
     gasWarning: 1300,
     gasDanger: 1800
   });
@@ -86,12 +84,27 @@ export function SafetyProvider({ children }) {
     localStorage.setItem("alarmEnabled", String(alarmEnabled));
   }, [alarmEnabled]);
 
+  const isDangerAlert = (alert) => alert.severity === "Critical" || alert.severity === "High";
+  const isLocallyAcknowledged = (workerId) => acknowledgedDangerIds.includes(workerId);
   const activeDangerAlerts = alerts.filter(
-    (alert) => alert.status === "active" && (alert.severity === "Critical" || alert.severity === "High")
+    (alert) =>
+      alert.status === "active" &&
+      isDangerAlert(alert) &&
+      !isLocallyAcknowledged(alert.workerId)
   );
-  const activeDangerWorker = workers.find(
-    (worker) => worker.isOnline && worker.status === "DANGER" && !acknowledgedDangerIds.includes(worker.id) && activeDangerAlerts.some((alert) => alert.workerId === worker.id)
-  ) || null;
+  const alertBackedDanger = activeDangerAlerts[0] || null;
+  const fallbackDangerWorker = workers.find((worker) => {
+    if (!worker.isOnline || worker.status !== "DANGER" || isLocallyAcknowledged(worker.id)) return false;
+
+    const latestWorkerDangerAlert = alerts.find((alert) => alert.workerId === worker.id && isDangerAlert(alert));
+    return !latestWorkerDangerAlert || latestWorkerDangerAlert.status === "active";
+  }) || null;
+  const activeDangerWorker = alertBackedDanger
+    ? workers.find((worker) => worker.id === alertBackedDanger.workerId) || fallbackDangerWorker
+    : fallbackDangerWorker;
+  const activeDangerAlert = activeDangerWorker
+    ? alerts.find((alert) => alert.workerId === activeDangerWorker.id && alert.status === "active" && isDangerAlert(alert)) || null
+    : null;
 
   const acknowledgeEmergency = async (workerId) => {
     setAcknowledgedDangerIds((current) => [...new Set([...current, workerId])]);
@@ -120,10 +133,11 @@ export function SafetyProvider({ children }) {
       alarmEnabled,
       setAlarmEnabled,
       activeDangerWorker,
+      activeDangerAlert,
       acknowledgeEmergency,
       acknowledgeAlert
     }),
-    [workers, alerts, loading, connectionStatus, lastRealtimeUpdate, demoMode, thresholds, alarmEnabled, activeDangerWorker]
+    [workers, alerts, loading, connectionStatus, lastRealtimeUpdate, demoMode, thresholds, alarmEnabled, activeDangerWorker, activeDangerAlert]
   );
 
   return <SafetyContext.Provider value={value}>{children}</SafetyContext.Provider>;

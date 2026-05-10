@@ -51,7 +51,7 @@ export default function AlertsPage() {
             <span>{alert.status}</span>
             <span>
               {alert.status === "active" ? (
-                <button className="small-btn" onClick={() => acknowledgeAlert(alert.id)}>Acknowledge</button>
+                <button className="small-btn" onClick={() => acknowledgeAlert(alert.id)}>تم الاستعلام</button>
               ) : (
                 <StatusBadge status="SAFE" />
               )}

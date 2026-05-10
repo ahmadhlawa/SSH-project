@@ -1,3 +1,6 @@
 timestamp,workerId,workerName,helmetId,status,temperature,humidity,gasValue,fallDetected,sosPressed,acX,acY,acZ,gyX,gyY,gyZ,lat,lng,alertType,severity
 2026-05-09T20:54:35.984Z,W-1001,ismail aljabri,HLM-ESP32-001,WARNING,32.4,31,1392,false,false,,,,,,,31.7683,35.2137,Gas,Medium
 2026-05-09T21:11:30.458Z,W-1001,ismail aljabri,HLM-ESP32-001,WARNING,32.6,75,300,false,false,10,20,16000,1,2,3,31.7683,35.2137,Humidity,Medium
+2026-05-10T15:05:53.116Z,W-1001,ismail aljabri,HLM-ESP32-001,DANGER,0,0,2512,false,false,,,,,,,31.7683,35.2137,Gas,Critical
+2026-05-10T15:22:52.106Z,W-1001,ismail aljabri,HLM-ESP32-001,DANGER,0.2,0,1919,false,false,,,,,,,31.7683,35.2137,Gas,Critical
+2026-05-10T15:37:52.333Z,W-1001,ismail aljabri,HLM-ESP32-001,DANGER,28.3,49,1968,false,false,0,0,0,0,0,0,31.7683,35.2137,Gas,Critical
