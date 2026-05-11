@@ -59,7 +59,11 @@ function updateAlertReadings(alert, worker) {
     acZ: worker.acZ,
     gyX: worker.gyX,
     gyY: worker.gyY,
-    gyZ: worker.gyZ
+    gyZ: worker.gyZ,
+    accelG: worker.accelG,
+    gyroDPS: worker.gyroDPS,
+    helmetTilted: worker.helmetTilted,
+    fallAlert: worker.fallAlert
   };
   alert.zone = worker.zone;
   alert.lastReadingAt = worker.lastUpdate;
@@ -109,7 +113,11 @@ function createAlert(worker) {
       acZ: worker.acZ,
       gyX: worker.gyX,
       gyY: worker.gyY,
-      gyZ: worker.gyZ
+      gyZ: worker.gyZ,
+      accelG: worker.accelG,
+      gyroDPS: worker.gyroDPS,
+      helmetTilted: worker.helmetTilted,
+      fallAlert: worker.fallAlert
     },
     zone: worker.zone
   };
@@ -133,7 +141,14 @@ function updateWorkerReading(workerId, reading) {
     acZ: reading.acZ === undefined ? worker.acZ : Number(reading.acZ),
     gyX: reading.gyX === undefined ? worker.gyX : Number(reading.gyX),
     gyY: reading.gyY === undefined ? worker.gyY : Number(reading.gyY),
-    gyZ: reading.gyZ === undefined ? worker.gyZ : Number(reading.gyZ)
+    gyZ: reading.gyZ === undefined ? worker.gyZ : Number(reading.gyZ),
+    accelG: reading.accelG === undefined ? worker.accelG : Number(reading.accelG),
+    gyroDPS: reading.gyroDPS === undefined ? worker.gyroDPS : Number(reading.gyroDPS),
+    helmetTilted: Boolean(reading.helmetTilted ?? worker.helmetTilted),
+    fallAlert: Boolean(reading.fallAlert ?? worker.fallAlert),
+    alert: Boolean(reading.alert ?? worker.alert),
+    deviceTimestamp: reading.timestamp === undefined ? worker.deviceTimestamp : Number(reading.timestamp),
+    deviceAlertType: reading.deviceAlertType === undefined ? worker.deviceAlertType : String(reading.deviceAlertType)
   };
 
   const statusResult = evaluateStatus(nextReading);

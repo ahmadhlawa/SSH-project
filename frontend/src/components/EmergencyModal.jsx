@@ -83,6 +83,9 @@ export default function EmergencyModal({ worker, alert }) {
           <span>Gas <strong>{worker.gasValue}</strong></span>
           <span>Humidity <strong>{worker.humidity}%</strong></span>
           <span>Fall <strong>{worker.fallDetected ? "YES" : "No"}</strong></span>
+          <span>Accel <strong>{worker.accelG === undefined ? "N/A" : `${worker.accelG} G`}</strong></span>
+          <span>Gyro <strong>{worker.gyroDPS === undefined ? "N/A" : `${worker.gyroDPS} DPS`}</strong></span>
+          <span>Tilted <strong>{worker.helmetTilted ? "YES" : "No"}</strong></span>
           <span>SOS <strong>{worker.sosPressed ? "Pressed" : "No"}</strong></span>
           <span>Zone <strong>{worker.zone}</strong></span>
           <span>Timestamp <strong>{formatDateTime(alert?.timestamp || worker.lastUpdate)}</strong></span>

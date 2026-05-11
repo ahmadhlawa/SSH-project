@@ -24,19 +24,29 @@ const char* HELMET_ID = "HLM-ESP32-001";
 
 #define GAS_PIN 34
 #define BUZZER_PIN 25
+#define BUZZER_ACTIVE_LOW false
 
 #define LED1 26
 #define LED2 27
 #define LED3 32
 #define LED4 33
 
-#define MPU_SDA 22
-#define MPU_SCL 21
+#define MPU_SDA 21
+#define MPU_SCL 22
 
 DHT dht(DHTPIN, DHTTYPE);
 
-int16_t AcX, AcY, AcZ;
-int16_t GyX, GyY, GyZ;
+int16_t AcX = 0;
+int16_t AcY = 0;
+int16_t AcZ = 0;
+int16_t GyX = 0;
+int16_t GyY = 0;
+int16_t GyZ = 0;
+
+float latestAccelG = 0.0;
+float latestGyroDPS = 0.0;
+bool latestHelmetTilted = false;
+bool mpuReady = false;
 
 // ================= Timing =================
 unsigned long lastSendTime = 0;
@@ -47,7 +57,6 @@ const unsigned long BUZZER_PULSE_INTERVAL = 220;
 const unsigned long ALARM_CYCLE_DURATION_MS = 5000;
 const unsigned long ALARM_REPEAT_INTERVAL_MS = 7000;
 const unsigned long ALARM_STATE_POLL_INTERVAL_MS = 2000;
-const unsigned long FALL_CONFIRMATION_DELAY_MS = 1200;
 
 unsigned long lastLedFlashTime = 0;
 unsigned long lastBuzzerPulseTime = 0;
@@ -62,14 +71,21 @@ bool backendAlarmActive = false;
 bool backendAlarmAcknowledged = false;
 bool previousDangerAlert = false;
 
-// ================= Thresholds =================
+// ================= Alert Thresholds =================
 const int GAS_DANGER_THRESHOLD = 1800;
 const float TEMP_DANGER_THRESHOLD = 40.0;
 
-const float IMPACT_G_THRESHOLD = 2.5;
-const float STABLE_MIN_G = 0.7;
-const float STABLE_MAX_G = 1.3;
-const float GYRO_ROTATION_THRESHOLD = 30000;
+// ================= Tested Fall Detection Thresholds =================
+const float IMPACT_THRESHOLD_G = 1.55;
+const float HARD_IMPACT_THRESHOLD_G = 2.70;
+const float ROTATION_THRESHOLD_DPS = 230.0;
+const float MIN_ACCEL_WITH_ROTATION_G = 1.25;
+const float TILT_Z_THRESHOLD = 0.45;
+const unsigned long FALL_CONFIRMATION_DELAY_MS = 650;
+const unsigned long FALL_DETECTION_COOLDOWN_MS = 3000;
+
+bool fallLatched = false;
+unsigned long lastFallDetectionTime = 0;
 
 // ================= Output Helpers =================
 void setAllLeds(bool active) {
@@ -81,7 +97,11 @@ void setAllLeds(bool active) {
 }
 
 void setBuzzer(bool active) {
-  digitalWrite(BUZZER_PIN, active ? HIGH : LOW);
+  if (BUZZER_ACTIVE_LOW) {
+    digitalWrite(BUZZER_PIN, active ? LOW : HIGH);
+  } else {
+    digitalWrite(BUZZER_PIN, active ? HIGH : LOW);
+  }
   buzzerOn = active;
 }
 
@@ -121,11 +141,54 @@ void connectToWiFi() {
   }
 }
 
-// ================= MPU6050 Read =================
+// ================= MPU6050 Helpers =================
+void wakeMPU6050() {
+  Serial.println("Initializing MPU6050...");
+  Serial.print("MPU6050 address: 0x");
+  Serial.println(MPU6050_ADDR, HEX);
+  Serial.print("I2C SDA: GPIO");
+  Serial.print(MPU_SDA);
+  Serial.print(" SCL: GPIO");
+  Serial.println(MPU_SCL);
+
+  Wire.beginTransmission(MPU6050_ADDR);
+  byte status = Wire.endTransmission();
+
+  if (status != 0) {
+    mpuReady = false;
+    Serial.print("MPU6050 not found. I2C status: ");
+    Serial.println(status);
+    Serial.println("Continuing without infinite buzzer loop.");
+    return;
+  }
+
+  Wire.beginTransmission(MPU6050_ADDR);
+  Wire.write(0x6B);
+  Wire.write(0x00);
+  byte wakeStatus = Wire.endTransmission(true);
+
+  mpuReady = wakeStatus == 0;
+  if (mpuReady) {
+    Serial.println("MPU6050 detected and awake.");
+  } else {
+    Serial.print("MPU6050 wake failed. I2C status: ");
+    Serial.println(wakeStatus);
+  }
+}
+
 void readMPU6050() {
+  if (!mpuReady) return;
+
   Wire.beginTransmission(MPU6050_ADDR);
   Wire.write(0x3B);
-  Wire.endTransmission(false);
+  byte status = Wire.endTransmission(false);
+
+  if (status != 0) {
+    Serial.print("MPU6050 read request failed. I2C status: ");
+    Serial.println(status);
+    return;
+  }
+
   Wire.requestFrom((uint8_t)MPU6050_ADDR, (size_t)14, true);
 
   if (Wire.available() == 14) {
@@ -139,71 +202,112 @@ void readMPU6050() {
     GyX = Wire.read() << 8 | Wire.read();
     GyY = Wire.read() << 8 | Wire.read();
     GyZ = Wire.read() << 8 | Wire.read();
+  } else {
+    Serial.println("MPU6050 returned incomplete data.");
   }
 }
 
-float calculateTotalG() {
-  float axG = AcX / 16384.0;
-  float ayG = AcY / 16384.0;
-  float azG = AcZ / 16384.0;
+float getAxG() {
+  return AcX / 16384.0;
+}
 
+float getAyG() {
+  return AcY / 16384.0;
+}
+
+float getAzG() {
+  return AcZ / 16384.0;
+}
+
+float getAccelMagnitudeG() {
+  float axG = getAxG();
+  float ayG = getAyG();
+  float azG = getAzG();
   return sqrt((axG * axG) + (ayG * ayG) + (azG * azG));
 }
 
-float calculateGyroMagnitude() {
-  float gx = GyX;
-  float gy = GyY;
-  float gz = GyZ;
-
-  return sqrt((gx * gx) + (gy * gy) + (gz * gz));
+float getGyroMagnitudeDPS() {
+  float gxDPS = GyX / 131.0;
+  float gyDPS = GyY / 131.0;
+  float gzDPS = GyZ / 131.0;
+  return sqrt((gxDPS * gxDPS) + (gyDPS * gyDPS) + (gzDPS * gzDPS));
 }
 
-void printMPUCalibrationValues() {
-  float axG = AcX / 16384.0;
-  float ayG = AcY / 16384.0;
-  float azG = AcZ / 16384.0;
-  float totalG = calculateTotalG();
-  float gyroMagnitude = calculateGyroMagnitude();
+bool isHelmetSeriouslyTilted() {
+  return fabs(getAzG()) < TILT_Z_THRESHOLD;
+}
 
+void updateMPUDiagnostics() {
+  latestAccelG = getAccelMagnitudeG();
+  latestGyroDPS = getGyroMagnitudeDPS();
+  latestHelmetTilted = isHelmetSeriouslyTilted();
+}
+
+void printMPUValues() {
   Serial.print("axG: ");
-  Serial.print(axG, 3);
+  Serial.print(getAxG(), 3);
   Serial.print(" ayG: ");
-  Serial.print(ayG, 3);
+  Serial.print(getAyG(), 3);
   Serial.print(" azG: ");
-  Serial.print(azG, 3);
-  Serial.print(" totalG: ");
-  Serial.print(totalG, 3);
-  Serial.print(" gyroMagnitude: ");
-  Serial.println(gyroMagnitude, 1);
+  Serial.print(getAzG(), 3);
+  Serial.print(" accelG: ");
+  Serial.print(latestAccelG, 3);
+  Serial.print(" gyroDPS: ");
+  Serial.print(latestGyroDPS, 1);
+  Serial.print(" tilted: ");
+  Serial.println(latestHelmetTilted ? "YES" : "NO");
+}
+
+void latchFall() {
+  fallLatched = true;
+  lastFallDetectionTime = millis();
 }
 
 bool detectFall() {
-  float totalG = calculateTotalG();
-  float gyroMagnitude = calculateGyroMagnitude();
-  bool possibleImpact = totalG > IMPACT_G_THRESHOLD;
-  bool abnormalRotation = gyroMagnitude > GYRO_ROTATION_THRESHOLD;
+  if (!mpuReady) return false;
 
-  printMPUCalibrationValues();
+  updateMPUDiagnostics();
+  printMPUValues();
 
-  if (!possibleImpact && !abnormalRotation) {
+  if (fallLatched) {
+    return true;
+  }
+
+  unsigned long now = millis();
+  if (now - lastFallDetectionTime < FALL_DETECTION_COOLDOWN_MS) {
+    return false;
+  }
+
+  bool hardImpact = latestAccelG >= HARD_IMPACT_THRESHOLD_G;
+  bool impact = latestAccelG >= IMPACT_THRESHOLD_G;
+  bool rotationWithImpact = latestGyroDPS >= ROTATION_THRESHOLD_DPS && latestAccelG >= MIN_ACCEL_WITH_ROTATION_G;
+
+  if (!hardImpact && !impact && !rotationWithImpact) {
     return false;
   }
 
   Serial.println("Possible fall/impact detected");
-  delay(FALL_CONFIRMATION_DELAY_MS);
+  lastFallDetectionTime = now;
 
-  readMPU6050();
-  printMPUCalibrationValues();
-
-  float confirmedTotalG = calculateTotalG();
-  bool stableAfterImpact = confirmedTotalG >= STABLE_MIN_G && confirmedTotalG <= STABLE_MAX_G;
-
-  if (stableAfterImpact) {
-    Serial.println("Fall confirmed");
+  if (hardImpact) {
+    Serial.println(">>> HARD IMPACT FALL CONFIRMED <<<");
+    latchFall();
     return true;
   }
 
-  Serial.println("Impact ignored");
+  delay(FALL_CONFIRMATION_DELAY_MS);
+
+  readMPU6050();
+  updateMPUDiagnostics();
+  printMPUValues();
+
+  if (latestHelmetTilted) {
+    Serial.println(">>> FALL CONFIRMED <<<");
+    latchFall();
+    return true;
+  }
+
+  Serial.println("Fall ignored: impact happened but helmet did not stay in fall position.");
   return false;
 }
 
@@ -225,6 +329,11 @@ void updateAlarmOutputs() {
 void updateBackendAlarmStateFromBody(String responseBody) {
   backendAlarmActive = responseBody.indexOf("\"alarmActive\":true") >= 0;
   backendAlarmAcknowledged = responseBody.indexOf("\"acknowledged\":true") >= 0;
+
+  if (backendAlarmAcknowledged && fallLatched) {
+    fallLatched = false;
+    Serial.println("Fall latch cleared after dashboard acknowledge.");
+  }
 }
 
 void pollBackendAlarmState() {
@@ -296,19 +405,32 @@ void updateBuzzerAlarm(bool dangerActive) {
   updateAlarmOutputs();
 }
 
+String getAlertType(bool gasAlert, bool tempAlert, bool fallAlert) {
+  if (fallAlert) return "fall";
+  if (gasAlert) return "gas";
+  if (tempAlert) return "temperature";
+  return "none";
+}
+
 // ================= Send Reading to Backend =================
 void sendReadingToBackend(
   float temperature,
   float humidity,
   int gasValue,
   bool fallDetected,
-  bool sosPressed
+  bool sosPressed,
+  bool gasAlert,
+  bool tempAlert,
+  bool fallAlert
 ) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("Wi-Fi disconnected. Reconnecting...");
     connectToWiFi();
     return;
   }
+
+  bool alert = gasAlert || tempAlert || fallAlert || sosPressed;
+  String alertType = getAlertType(gasAlert, tempAlert, fallAlert);
 
   HTTPClient http;
 
@@ -329,7 +451,15 @@ void sendReadingToBackend(
 
   payload += "\"gasValue\":" + String(gasValue) + ",";
   payload += "\"fallDetected\":" + String(fallDetected ? "true" : "false") + ",";
+  payload += "\"fall\":" + String(fallDetected ? "true" : "false") + ",";
+  payload += "\"fallAlert\":" + String(fallAlert ? "true" : "false") + ",";
   payload += "\"sosPressed\":" + String(sosPressed ? "true" : "false") + ",";
+  payload += "\"alert\":" + String(alert ? "true" : "false") + ",";
+  payload += "\"alertType\":\"" + alertType + "\",";
+  payload += "\"accelG\":" + String(latestAccelG, 3) + ",";
+  payload += "\"gyroDPS\":" + String(latestGyroDPS, 1) + ",";
+  payload += "\"helmetTilted\":" + String(latestHelmetTilted ? "true" : "false") + ",";
+  payload += "\"timestamp\":" + String(millis()) + ",";
   payload += "\"acX\":" + String(AcX) + ",";
   payload += "\"acY\":" + String(AcY) + ",";
   payload += "\"acZ\":" + String(AcZ) + ",";
@@ -359,8 +489,13 @@ void sendReadingToBackend(
 // ================= Setup =================
 void setup() {
   Serial.begin(115200);
+  delay(300);
+
+  Serial.println();
+  Serial.println("Smart Safety Helmet Starting...");
 
   dht.begin();
+  Serial.println("DHT11 initialized on GPIO14.");
 
   pinMode(GAS_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
@@ -375,11 +510,8 @@ void setup() {
   playStartupTones();
 
   Wire.begin(MPU_SDA, MPU_SCL);
-
-  Wire.beginTransmission(MPU6050_ADDR);
-  Wire.write(0x6B);
-  Wire.write(0);
-  Wire.endTransmission(true);
+  Wire.setClock(100000);
+  wakeMPU6050();
 
   connectToWiFi();
 
@@ -390,17 +522,16 @@ void setup() {
 void loop() {
   float humidity = dht.readHumidity();
   float temperature = dht.readTemperature();
-
   int gasValue = analogRead(GAS_PIN);
 
   readMPU6050();
 
-  bool fallDetected = detectFall();
+  bool fallAlert = detectFall();
   bool sosPressed = false;
 
   bool gasAlert = gasValue >= GAS_DANGER_THRESHOLD;
   bool tempAlert = !isnan(temperature) && temperature >= TEMP_DANGER_THRESHOLD;
-  bool dangerAlert = gasAlert || tempAlert || fallDetected || sosPressed;
+  bool dangerAlert = gasAlert || tempAlert || fallAlert;
 
   Serial.println("-------------");
 
@@ -433,11 +564,15 @@ void loop() {
   Serial.print(" GZ: ");
   Serial.println(GyZ);
 
-  Serial.print("Fall Detected: ");
-  Serial.println(fallDetected ? "YES" : "NO");
+  Serial.print("Gas Alert: ");
+  Serial.println(gasAlert ? "YES" : "NO");
+  Serial.print("Temperature Alert: ");
+  Serial.println(tempAlert ? "YES" : "NO");
+  Serial.print("Fall Alert: ");
+  Serial.println(fallAlert ? "YES" : "NO");
 
   if (dangerAlert && !previousDangerAlert) {
-    sendReadingToBackend(temperature, humidity, gasValue, fallDetected, sosPressed);
+    sendReadingToBackend(temperature, humidity, gasValue, fallAlert, sosPressed, gasAlert, tempAlert, fallAlert);
     lastSendTime = millis();
   }
 
@@ -450,7 +585,7 @@ void loop() {
 
   if (millis() - lastSendTime >= SEND_INTERVAL) {
     lastSendTime = millis();
-    sendReadingToBackend(temperature, humidity, gasValue, fallDetected, sosPressed);
+    sendReadingToBackend(temperature, humidity, gasValue, fallAlert, sosPressed, gasAlert, tempAlert, fallAlert);
   }
 
   previousDangerAlert = dangerAlert;
