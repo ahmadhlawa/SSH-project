@@ -9,3 +9,5 @@ timestamp,workerId,workerName,helmetId,status,temperature,humidity,gasValue,fall
 2026-05-11T13:44:56.402Z,W-1001,ismail aljabri,HLM-ESP32-001,SAFE,31.2,6,702,false,false,2872,-1300,15192,-281,1,-134,31.7683,35.2137,,
 2026-05-11T13:51:15.760Z,W-1007,Adam Barakat,HLM-ESP32-007,WARNING,38.2,72,1350,false,false,,,,,,,31.9567,35.912,Gas,Medium
 2026-05-11T13:59:57.319Z,W-1001,ismail aljabri,HLM-ESP32-001,SAFE,30.3,6,687,false,false,3000,-1296,15248,-254,-38,-98,31.7683,35.2137,,
+2026-05-11T17:56:57.359Z,W-1001,ismail aljabri,HLM-ESP32-001,SAFE,29.4,6,863,false,false,1948,-3212,15004,-257,-8,-94,31.7683,35.2137,,
+2026-05-11T20:17:13.905Z,W-1001,ismail aljabri,HLM-ESP32-001,WARNING,0.1,0,1652,false,false,1924,-3072,14808,3944,-765,-723,31.7683,35.2137,Gas,Medium
