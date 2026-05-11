@@ -12,11 +12,7 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark">SSH</div>
-        <div>
-          <strong>Smart Helmet</strong>
-          <span>Safety Monitor</span>
-        </div>
+        <img className="brand-logo" src="/logo.png" alt="Smart Safety Helmet" />
       </div>
       <nav className="nav-list">
         {items.map((item) => {

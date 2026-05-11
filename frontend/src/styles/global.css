@@ -54,31 +54,15 @@ button {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 34px;
+  justify-content: center;
+  margin-bottom: 28px;
 }
 
-.brand-mark {
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: repeating-linear-gradient(135deg, var(--primary), var(--primary) 8px, #0f0f0f 8px, #0f0f0f 15px);
-  color: #0f0f0f;
-  font-weight: 900;
-  border: 2px solid var(--primary);
-}
-
-.brand strong,
-.brand span {
+.brand-logo {
   display: block;
-}
-
-.brand span {
-  color: #a7a7a7;
-  font-size: 0.85rem;
-  margin-top: 2px;
+  width: min(190px, 100%);
+  height: auto;
+  object-fit: contain;
 }
 
 .nav-list {
