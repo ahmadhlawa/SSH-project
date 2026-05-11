@@ -1,8 +1,7 @@
-import { Activity, AlertTriangle, CheckCircle2, Search, ShieldAlert, Wifi, WifiOff } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Search, ShieldAlert, Wifi, WifiOff } from "lucide-react";
 import { useMemo, useState } from "react";
 import WorkerCard from "../components/WorkerCard.jsx";
 import { useSafety } from "../context/SafetyContext.jsx";
-import { analyticsMockWorkers } from "../data/analyticsMock.js";
 import { formatTime } from "../services/format.js";
 
 const filters = ["All", "Live", "Safe", "Warning", "Danger", "Offline"];
@@ -36,24 +35,6 @@ export default function Dashboard() {
   }, [workers, search, filter]);
 
   const liveWorker = workers.find((worker) => worker.id === "W-1001") || onlineWorkers[0];
-  const analysisRows = useMemo(() => {
-    const liveRow = liveWorker
-      ? [{
-          id: liveWorker.id,
-          name: liveWorker.name,
-          zone: liveWorker.zone,
-          shiftHours: 0.7,
-          avgTemperature: Number(liveWorker.temperature || 0),
-          avgGasValue: Number(liveWorker.gasValue || 0),
-          humidity: Number(liveWorker.humidity || 0),
-          alertsToday: liveWorker.status === "DANGER" ? 1 : 0,
-          status: liveWorker.status,
-          live: true
-        }]
-      : [];
-
-    return [...liveRow, ...analyticsMockWorkers];
-  }, [liveWorker]);
 
   return (
     <section className="page dashboard-page">
@@ -100,33 +81,6 @@ export default function Dashboard() {
           {filteredWorkers.map((worker) => <WorkerCard key={worker.id} worker={worker} />)}
         </div>
       )}
-
-      <section className="analysis-panel">
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">Operations Analysis</span>
-            <h2>Worker exposure overview</h2>
-          </div>
-          <Activity size={22} />
-        </div>
-        <div className="analysis-grid">
-          {analysisRows.map((row) => (
-            <div className="analysis-card" key={row.id}>
-              <div>
-                <strong>{row.name}</strong>
-                <span>{row.id} - {row.zone}</span>
-              </div>
-              <div className="analysis-metrics">
-                <span>Shift <strong>{row.shiftHours}h</strong></span>
-                <span>Avg Temp <strong>{row.avgTemperature} C</strong></span>
-                <span>Avg Gas <strong>{row.avgGasValue}</strong></span>
-                <span>Alerts <strong>{row.alertsToday}</strong></span>
-              </div>
-              <span className={`status-badge status-${row.status.toLowerCase()}`}>{row.live ? "LIVE" : row.status}</span>
-            </div>
-          ))}
-        </div>
-      </section>
     </section>
   );
 }

@@ -17,6 +17,10 @@ const pageMeta = {
     title: "Incident Center",
     subtitle: "Review active, acknowledged, and historical safety alerts."
   },
+  "/analytics": {
+    title: "Safety Analytics",
+    subtitle: "Risk patterns, exposure trends, and incident intelligence."
+  },
   "/settings": {
     title: "System Settings",
     subtitle: "Tune dashboard thresholds, alarm sound, and demo controls."

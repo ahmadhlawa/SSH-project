@@ -1,10 +1,11 @@
-import { AlertTriangle, Gauge, Map, Settings, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Gauge, Map, Settings, ShieldAlert, X } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const items = [
   { to: "/", label: "Dashboard", icon: Gauge },
   { to: "/map", label: "Map", icon: Map },
   { to: "/alerts", label: "Alerts", icon: AlertTriangle },
+  { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings }
 ];
 

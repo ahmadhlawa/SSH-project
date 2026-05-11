@@ -5,6 +5,7 @@ import MapPage from "./pages/MapPage.jsx";
 import WorkerDetails from "./pages/WorkerDetails.jsx";
 import AlertsPage from "./pages/AlertsPage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
+import AnalyticsPage from "./pages/AnalyticsPage.jsx";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/map" element={<MapPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/workers/:id" element={<WorkerDetails />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
