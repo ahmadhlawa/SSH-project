@@ -73,7 +73,7 @@ function buildInfoWindowContent(worker, onViewDetails) {
   const metrics = document.createElement("div");
   metrics.className = "map-info-metrics";
   metrics.innerHTML = `
-    <span>Temp <strong>${worker.temperature}°C</strong></span>
+    <span>Temp <strong>${worker.temperature} C</strong></span>
     <span>Gas <strong>${worker.gasValue}</strong></span>
   `;
 
@@ -215,3 +215,4 @@ function MapFallback({ title, message, workers }) {
     </div>
   );
 }
+

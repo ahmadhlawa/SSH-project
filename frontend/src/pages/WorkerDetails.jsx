@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Clock, MapPin } from "lucide-react";
+import { Activity, AlertTriangle, Check, Clock, Cpu, MapPin } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import GoogleMapView from "../components/GoogleMapView.jsx";
@@ -53,13 +53,20 @@ export default function WorkerDetails() {
         <div>
           <span className="eyebrow">Worker Profile</span>
           <h1>{worker.name}</h1>
-          <p>{worker.id} · {worker.helmetId} · {worker.department}</p>
+          <p>{worker.id} - {worker.helmetId} - {worker.department}</p>
         </div>
         <StatusBadge status={displayStatus} />
       </div>
       <div className="details-layout">
         <div className="details-main">
           <div className={`profile-panel card-${displayStatus.toLowerCase()}`}>
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">Live Helmet Data</span>
+                <h2>Sensor metrics</h2>
+              </div>
+              <Activity size={22} />
+            </div>
             <div className="profile-grid">
               <Metric label="Zone" value={worker.zone} />
               <Metric label="Temperature" value={`${worker.temperature}C`} tone={worker.temperature >= thresholds.temperatureDanger ? "danger" : worker.temperature >= thresholds.temperatureWarning ? "warning" : ""} />
@@ -69,6 +76,27 @@ export default function WorkerDetails() {
               <Metric label="SOS Status" value={worker.sosPressed ? "Pressed" : "No"} tone={worker.sosPressed ? "danger" : ""} />
             </div>
             <div className="last-update"><Clock size={16} /> Last update {formatDateTime(worker.lastUpdate)}</div>
+          </div>
+
+          <div className="profile-panel">
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">MPU6050</span>
+                <h2>Motion telemetry</h2>
+              </div>
+              <Cpu size={22} />
+            </div>
+            <div className="profile-grid">
+              <Metric label="Accel G" value={worker.accelG === undefined ? "N/A" : worker.accelG} />
+              <Metric label="Gyro DPS" value={worker.gyroDPS === undefined ? "N/A" : worker.gyroDPS} />
+              <Metric label="Helmet Tilted" value={worker.helmetTilted ? "YES" : "No"} tone={worker.helmetTilted ? "warning" : ""} />
+              <Metric label="AcX" value={worker.acX ?? "N/A"} />
+              <Metric label="AcY" value={worker.acY ?? "N/A"} />
+              <Metric label="AcZ" value={worker.acZ ?? "N/A"} />
+              <Metric label="GyX" value={worker.gyX ?? "N/A"} />
+              <Metric label="GyY" value={worker.gyY ?? "N/A"} />
+              <Metric label="GyZ" value={worker.gyZ ?? "N/A"} />
+            </div>
           </div>
 
           {worker.isOnline && worker.status !== "SAFE" && (
@@ -92,8 +120,8 @@ export default function WorkerDetails() {
                 <div className="timeline-item" key={event.id}>
                   <AlertTriangle size={16} />
                   <div>
-                    <strong>{event.type} · {event.severity}</strong>
-                    <span>{formatDateTime(event.timestamp)} · {event.status}</span>
+                    <strong>{event.type} - {event.severity}</strong>
+                    <span>{formatDateTime(event.timestamp)} - {event.status}</span>
                   </div>
                 </div>
               ))

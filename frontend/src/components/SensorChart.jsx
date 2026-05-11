@@ -7,7 +7,7 @@ const padding = { top: 18, right: 20, bottom: 38, left: 42 };
 const seriesConfig = {
   temperature: { label: "Temp", color: "#ff4444", unit: "C" },
   humidity: { label: "Humidity", color: "#2563eb", unit: "%" },
-  gasValue: { label: "Gas", color: "#0f0f0f", unit: "" }
+  gasValue: { label: "Gas", color: "#FFD700", unit: "" }
 };
 
 function normalizePoint(value, min, max, height) {
