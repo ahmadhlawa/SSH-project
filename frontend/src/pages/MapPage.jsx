@@ -10,6 +10,7 @@ export default function MapPage() {
         <div>
           <span className="eyebrow">Location Command</span>
           <h1>Worker Map</h1>
+          <p>Live worker position tracking with status-aware map markers.</p>
         </div>
         <div className="map-legend">
           <span><i className="dot safe-dot" /> Safe</span>
@@ -18,7 +19,7 @@ export default function MapPage() {
           <span><i className="dot offline-dot" /> Offline</span>
         </div>
       </div>
-      <div className="map-panel">
+      <div className="map-panel glass-panel">
         <GoogleMapView workers={workers} />
       </div>
     </section>

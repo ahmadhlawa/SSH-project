@@ -1,10 +1,12 @@
-import { AlertTriangle, Bell, BellOff, RotateCcw, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, Moon, RotateCcw, ShieldAlert, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSafety } from "../context/SafetyContext.jsx";
+import { useTheme } from "../context/ThemeContext.jsx";
 import { api } from "../services/api.js";
 
 export default function SettingsPage() {
   const { workers, thresholds, setThresholds, alarmEnabled, setAlarmEnabled } = useSafety();
+  const { theme, toggleTheme } = useTheme();
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
   const [demoActionStatus, setDemoActionStatus] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -90,7 +92,7 @@ export default function SettingsPage() {
         <div>
           <span className="eyebrow">Demo Controls</span>
           <h1>Settings</h1>
-          <p>Adjust presentation thresholds and alarm behavior for the dashboard demo.</p>
+          <p>Adjust dashboard thresholds, theme preference, alarm sound, and controlled test scenarios.</p>
         </div>
       </div>
       <div className="settings-grid">
@@ -105,6 +107,13 @@ export default function SettingsPage() {
           <button className={`toggle ${alarmEnabled ? "on" : ""}`} onClick={() => setAlarmEnabled(!alarmEnabled)}>
             {alarmEnabled ? <Bell size={18} /> : <BellOff size={18} />}
             {alarmEnabled ? "Enabled" : "Disabled"}
+          </button>
+        </div>
+        <div className="setting-control toggle-control">
+          <span>Interface Theme</span>
+          <button className="toggle on" onClick={toggleTheme}>
+            {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
+            {theme === "dark" ? "Dark Mode" : "Light Mode"}
           </button>
         </div>
       </div>

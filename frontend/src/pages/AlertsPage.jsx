@@ -24,6 +24,7 @@ export default function AlertsPage() {
         <div>
           <span className="eyebrow">Incident Center</span>
           <h1>Alerts</h1>
+          <p>Track safety incidents, severity, status, and supervisor acknowledgements.</p>
         </div>
         <div className="filter-row">
           {filters.map((item) => (
@@ -33,7 +34,7 @@ export default function AlertsPage() {
           ))}
         </div>
       </div>
-      <div className="alerts-table">
+      <div className="alerts-table glass-panel">
         <div className="alerts-head">
           <span>Worker</span>
           <span>Type</span>
@@ -42,22 +43,26 @@ export default function AlertsPage() {
           <span>Status</span>
           <span>Action</span>
         </div>
-        {filteredAlerts.map((alert) => (
-          <div className="alerts-row" key={alert.id}>
-            <span><strong>{alert.workerName}</strong><small>{alert.workerId}</small></span>
-            <span>{alert.type}</span>
-            <span className={`severity ${alert.severity.toLowerCase()}`}>{alert.severity}</span>
-            <span>{formatDateTime(alert.timestamp)}</span>
-            <span>{alert.status}</span>
-            <span>
-              {alert.status === "active" ? (
-                <button className="small-btn" onClick={() => acknowledgeAlert(alert.id)}>تم الاستعلام</button>
-              ) : (
-                <StatusBadge status="SAFE" />
-              )}
-            </span>
-          </div>
-        ))}
+        {filteredAlerts.length === 0 ? (
+          <div className="empty-row">No alerts match this filter.</div>
+        ) : (
+          filteredAlerts.map((alert) => (
+            <div className="alerts-row" key={alert.id}>
+              <span><strong>{alert.workerName}</strong><small>{alert.workerId}</small></span>
+              <span>{alert.type}</span>
+              <span className={`severity ${alert.severity.toLowerCase()}`}>{alert.severity}</span>
+              <span>{formatDateTime(alert.timestamp)}</span>
+              <span className={`alert-status ${alert.status}`}>{alert.status}</span>
+              <span>
+                {alert.status === "active" ? (
+                  <button className="small-btn" onClick={() => acknowledgeAlert(alert.id)}>تم الاستعلام</button>
+                ) : (
+                  <StatusBadge status="SAFE" />
+                )}
+              </span>
+            </div>
+          ))
+        )}
       </div>
     </section>
   );
