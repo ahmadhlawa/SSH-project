@@ -16,15 +16,33 @@ const recommendations = {
   SOS: "Contact the worker and send supervisor support immediately."
 };
 
+const geocodeCache = new Map();
+const GEOCODE_CACHE_MS = 5 * 60 * 1000;
+
 function getWorkerCoordinates(worker) {
   const lat = Number(worker?.lat ?? worker?.latitude ?? worker?.location?.lat ?? worker?.position?.lat);
   const lng = Number(worker?.lng ?? worker?.longitude ?? worker?.location?.lng ?? worker?.position?.lng);
 
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat === 0 || lng === 0) {
-    return "Location unavailable";
-  }
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat === 0 || lng === 0) return null;
 
-  return `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+  return { lat, lng };
+}
+
+function formatCoordinates(position) {
+  if (!position) return "Location unavailable";
+  return `Lat: ${position.lat.toFixed(6)}, Lng: ${position.lng.toFixed(6)}`;
+}
+
+function getGeocodeKey(position) {
+  return `${position.lat.toFixed(4)},${position.lng.toFixed(4)}`;
+}
+
+function formatGeocodedAddress(address, fallbackName) {
+  const area = address.city || address.town || address.village || address.municipality || address.suburb || address.neighbourhood;
+  const region = address.state || address.county || address.region;
+  const country = address.country;
+  const parts = [area, region, country].filter(Boolean);
+  return [...new Set(parts)].join(", ") || fallbackName || "";
 }
 
 export default function WorkerDetails() {
@@ -32,7 +50,9 @@ export default function WorkerDetails() {
   const { workers, alerts, thresholds } = useSafety();
   const [sensorLogs, setSensorLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
+  const [geocodedLocation, setGeocodedLocation] = useState("");
   const worker = workers.find((item) => item.id === id);
+  const workerPosition = useMemo(() => getWorkerCoordinates(worker), [worker]);
   const workerEvents = useMemo(
     () => alerts.filter((alert) => alert.workerId === id).slice(0, 6),
     [alerts, id]
@@ -55,8 +75,58 @@ export default function WorkerDetails() {
     };
   }, [id, worker?.lastUpdate]);
 
+  useEffect(() => {
+    if (!workerPosition) {
+      setGeocodedLocation("");
+      return undefined;
+    }
+
+    const fallback = formatCoordinates(workerPosition);
+    const cacheKey = getGeocodeKey(workerPosition);
+    const cached = geocodeCache.get(cacheKey);
+    const now = Date.now();
+
+    if (cached && now - cached.timestamp < GEOCODE_CACHE_MS) {
+      setGeocodedLocation(cached.value || fallback);
+      return undefined;
+    }
+
+    let active = true;
+    setGeocodedLocation(fallback);
+
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("lat", String(workerPosition.lat));
+    url.searchParams.set("lon", String(workerPosition.lng));
+    url.searchParams.set("zoom", "14");
+    url.searchParams.set("addressdetails", "1");
+    url.searchParams.set("accept-language", "en");
+
+    fetch(url.toString())
+      .then((response) => {
+        if (!response.ok) throw new Error("Reverse geocoding failed");
+        return response.json();
+      })
+      .then((data) => {
+        if (!active) return;
+        const value = formatGeocodedAddress(data.address || {}, data.name) || fallback;
+        geocodeCache.set(cacheKey, { value, timestamp: Date.now() });
+        setGeocodedLocation(value);
+      })
+      .catch(() => {
+        if (!active) return;
+        geocodeCache.set(cacheKey, { value: fallback, timestamp: Date.now() });
+        setGeocodedLocation(fallback);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [workerPosition]);
+
   if (!worker) return <div className="empty-state">Worker not found.</div>;
   const displayStatus = worker.isOnline ? worker.status : "OFFLINE";
+  const locationLabel = geocodedLocation || formatCoordinates(workerPosition);
 
   return (
     <section className="page">
@@ -79,7 +149,7 @@ export default function WorkerDetails() {
               <Activity size={22} />
             </div>
             <div className="profile-grid">
-              <Metric label="Location" value={getWorkerCoordinates(worker)} />
+              <Metric label="Location" value={locationLabel} />
               <Metric label="Temperature" value={`${worker.temperature}C`} tone={worker.temperature >= thresholds.temperatureDanger ? "danger" : worker.temperature >= thresholds.temperatureWarning ? "warning" : ""} />
               <Metric label="Humidity" value={`${worker.humidity}%`} />
               <Metric label="Gas Value" value={worker.gasValue} tone={worker.gasValue >= thresholds.gasDanger ? "danger" : worker.gasValue >= thresholds.gasWarning ? "warning" : ""} />
