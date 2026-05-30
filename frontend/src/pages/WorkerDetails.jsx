@@ -16,6 +16,17 @@ const recommendations = {
   SOS: "Contact the worker and send supervisor support immediately."
 };
 
+function getWorkerCoordinates(worker) {
+  const lat = Number(worker?.lat ?? worker?.latitude ?? worker?.location?.lat ?? worker?.position?.lat);
+  const lng = Number(worker?.lng ?? worker?.longitude ?? worker?.location?.lng ?? worker?.position?.lng);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat === 0 || lng === 0) {
+    return "Location unavailable";
+  }
+
+  return `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+}
+
 export default function WorkerDetails() {
   const { id } = useParams();
   const { workers, alerts, thresholds } = useSafety();
@@ -68,7 +79,7 @@ export default function WorkerDetails() {
               <Activity size={22} />
             </div>
             <div className="profile-grid">
-              <Metric label="Zone" value={worker.zone} />
+              <Metric label="Location" value={getWorkerCoordinates(worker)} />
               <Metric label="Temperature" value={`${worker.temperature}C`} tone={worker.temperature >= thresholds.temperatureDanger ? "danger" : worker.temperature >= thresholds.temperatureWarning ? "warning" : ""} />
               <Metric label="Humidity" value={`${worker.humidity}%`} />
               <Metric label="Gas Value" value={worker.gasValue} tone={worker.gasValue >= thresholds.gasDanger ? "danger" : worker.gasValue >= thresholds.gasWarning ? "warning" : ""} />
