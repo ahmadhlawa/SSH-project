@@ -35,7 +35,7 @@ function validateReadingPayload(body) {
   }
 
   const reading = {};
-  const numericFields = ["temperature", "humidity", "gasValue", "lat", "lng", "latitude", "longitude", "acX", "acY", "acZ", "gyX", "gyY", "gyZ", "accelG", "gyroDPS", "timestamp"];
+  const numericFields = ["temperature", "humidity", "gasValue", "lat", "lng", "latitude", "longitude", "satellites", "acX", "acY", "acZ", "gyX", "gyY", "gyZ", "accelG", "gyroDPS", "timestamp"];
   const booleanFields = ["fallDetected", "fall", "fallAlert", "sosPressed", "alert", "helmetTilted", "gpsValid"];
 
   numericFields.forEach((field) => {
@@ -74,6 +74,7 @@ router.post("/readings", (req, res) => {
     gpsValid: reading.gpsValid,
     latitude: reading.latitude,
     longitude: reading.longitude,
+    satellites: reading.satellites,
     gasValue: reading.gasValue,
     alert: reading.alert,
     lat: reading.lat,
@@ -110,6 +111,7 @@ router.post("/readings", (req, res) => {
     gpsValid: result?.worker?.gpsValid,
     latitude: result?.worker?.latitude,
     longitude: result?.worker?.longitude,
+    satellites: result?.worker?.satellites,
     lat: result?.worker?.lat,
     lng: result?.worker?.lng,
     lastSeen: result?.worker?.lastSeen,

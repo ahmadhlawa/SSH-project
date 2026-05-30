@@ -44,8 +44,13 @@ HardwareSerial gpsSerial(2);
 double gpsLat = 0.0;
 double gpsLng = 0.0;
 bool gpsValid = false;
+uint32_t gpsSatellites = 0;
 
 DHT dht(DHTPIN, DHTTYPE);
+float latestTemperature = NAN;
+float latestHumidity = NAN;
+bool latestDhtValid = false;
+int latestGasValue = 0;
 
 int16_t AcX = 0;
 int16_t AcY = 0;
@@ -62,6 +67,9 @@ bool mpuReady = false;
 // ================= Timing =================
 unsigned long lastSendTime = 0;
 const unsigned long SEND_INTERVAL = 10000;
+const unsigned long DHT_READ_INTERVAL = 2500;
+const unsigned long SERIAL_PRINT_INTERVAL = 2000;
+const unsigned long LOOP_DELAY_MS = 250;
 
 const unsigned long LED_FLASH_INTERVAL = 180;
 const unsigned long BUZZER_PULSE_INTERVAL = 220;
@@ -74,6 +82,9 @@ unsigned long lastBuzzerPulseTime = 0;
 unsigned long alarmCycleStartedAt = 0;
 unsigned long lastAlarmCycleEndedAt = 0;
 unsigned long lastAlarmStatePollTime = 0;
+unsigned long lastDhtReadTime = 0;
+unsigned long lastSerialPrintTime = 0;
+bool shouldPrintStatus = false;
 
 bool ledsOn = false;
 bool buzzerOn = false;
@@ -255,6 +266,8 @@ void updateMPUDiagnostics() {
 }
 
 void printMPUValues() {
+  if (!shouldPrintStatus) return;
+
   Serial.print("axG: ");
   Serial.print(getAxG(), 3);
   Serial.print(" ayG: ");
@@ -424,6 +437,78 @@ String getAlertType(bool gasAlert, bool tempAlert, bool fallAlert) {
   return "none";
 }
 
+void readDHTIfDue() {
+  unsigned long now = millis();
+  if (lastDhtReadTime != 0 && now - lastDhtReadTime < DHT_READ_INTERVAL) return;
+
+  lastDhtReadTime = now;
+  if (shouldPrintStatus) Serial.println("[DBG] Before DHT read");
+
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+
+  if (!isnan(humidity) && !isnan(temperature)) {
+    latestHumidity = humidity;
+    latestTemperature = temperature;
+    latestDhtValid = true;
+  } else {
+    latestDhtValid = false;
+  }
+
+  if (shouldPrintStatus) Serial.println("[DBG] After DHT read");
+}
+
+void printSlowStatus(bool gasAlert, bool tempAlert, bool fallAlert, bool dangerAlert) {
+  Serial.println("-------------");
+
+  if (latestDhtValid || (!isnan(latestHumidity) && !isnan(latestTemperature))) {
+    Serial.print("Temperature: ");
+    Serial.print(latestTemperature);
+    Serial.println(" C");
+
+    Serial.print("Humidity: ");
+    Serial.print(latestHumidity);
+    Serial.println(" %");
+  } else {
+    Serial.println("DHT ERROR - keeping last valid values if available");
+  }
+
+  Serial.print("Gas Value: ");
+  Serial.println(latestGasValue);
+
+  Serial.print("GPS Valid: ");
+  Serial.println(gpsValid ? "YES" : "NO");
+  Serial.print("GPS Satellites: ");
+  Serial.println(gpsSatellites);
+  Serial.print("Latitude: ");
+  Serial.println(gpsLat, 6);
+  Serial.print("Longitude: ");
+  Serial.println(gpsLng, 6);
+
+  Serial.print("AX: ");
+  Serial.print(AcX);
+  Serial.print(" AY: ");
+  Serial.print(AcY);
+  Serial.print(" AZ: ");
+  Serial.println(AcZ);
+
+  Serial.print("GX: ");
+  Serial.print(GyX);
+  Serial.print(" GY: ");
+  Serial.print(GyY);
+  Serial.print(" GZ: ");
+  Serial.println(GyZ);
+
+  Serial.print("Gas Alert: ");
+  Serial.println(gasAlert ? "YES" : "NO");
+  Serial.print("Temperature Alert: ");
+  Serial.println(tempAlert ? "YES" : "NO");
+  Serial.print("Fall Alert: ");
+  Serial.println(fallAlert ? "YES" : "NO");
+  Serial.print("Danger Alert: ");
+  Serial.println(dangerAlert ? "YES" : "NO");
+}
+
 // ================= Send Reading to Backend =================
 void sendReadingToBackend(
   float temperature,
@@ -474,6 +559,9 @@ void sendReadingToBackend(
   payload += "\"gpsValid\":" + String(gpsValid ? "true":"false") + ",";
   payload += "\"latitude\":" + String(gpsLat,6) + ",";
   payload += "\"longitude\":" + String(gpsLng,6) + ",";
+  payload += "\"lat\":" + String(gpsLat,6) + ",";
+  payload += "\"lng\":" + String(gpsLng,6) + ",";
+  payload += "\"satellites\":" + String(gpsSatellites) + ",";
   payload += "\"helmetTilted\":" + String(latestHelmetTilted ? "true" : "false") + ",";
   payload += "\"timestamp\":" + String(millis()) + ",";
   payload += "\"acX\":" + String(AcX) + ",";
@@ -507,27 +595,28 @@ void sendReadingToBackend(
 //================== gps ===================
 
 void readGPS() {
-
   while (gpsSerial.available() > 0) {
-
     gps.encode(gpsSerial.read());
+  }
 
+  if (gps.satellites.isValid()) {
+    gpsSatellites = gps.satellites.value();
   }
 
   if (gps.location.isUpdated()) {
-
     gpsLat = gps.location.lat();
     gpsLng = gps.location.lng();
     gpsValid = gps.location.isValid();
 
-    Serial.println("GPS Updated");
-
-    Serial.print("Lat: ");
-    Serial.println(gpsLat,6);
-
-    Serial.print("Lng: ");
-    Serial.println(gpsLng,6);
-
+    if (shouldPrintStatus) {
+      Serial.println("GPS Updated");
+      Serial.print("Lat: ");
+      Serial.println(gpsLat, 6);
+      Serial.print("Lng: ");
+      Serial.println(gpsLng, 6);
+      Serial.print("Satellites: ");
+      Serial.println(gpsSatellites);
+    }
   }
 }
 
@@ -567,70 +656,37 @@ void setup() {
 
 // ================= Main Loop =================
 void loop() {
-  Serial.println("[DBG] Before DHT read");
-  float humidity = dht.readHumidity();
-  float temperature = dht.readTemperature();
-  Serial.println("[DBG] After DHT read");
+  unsigned long now = millis();
+  shouldPrintStatus = now - lastSerialPrintTime >= SERIAL_PRINT_INTERVAL;
+  if (shouldPrintStatus) lastSerialPrintTime = now;
 
-  Serial.println("[DBG] Before gas read");
-  int gasValue = analogRead(GAS_PIN);
-  Serial.println("[DBG] After gas read");
-
-  Serial.println("[DBG] Before GPS read");
+  if (shouldPrintStatus) Serial.println("[DBG] Before GPS read");
   readGPS();
-  Serial.println("[DBG] After GPS read");
+  if (shouldPrintStatus) Serial.println("[DBG] After GPS read");
 
-  Serial.println("[DBG] Before MPU read");
+  readDHTIfDue();
+
+  if (shouldPrintStatus) Serial.println("[DBG] Before gas read");
+  latestGasValue = analogRead(GAS_PIN);
+  if (shouldPrintStatus) Serial.println("[DBG] After gas read");
+
+  if (shouldPrintStatus) Serial.println("[DBG] Before MPU read");
   readMPU6050();
-  Serial.println("[DBG] After MPU read");
+  if (shouldPrintStatus) Serial.println("[DBG] After MPU read");
 
   bool fallAlert = detectFall();
   bool sosPressed = false;
 
-  bool gasAlert = gasValue >= GAS_DANGER_THRESHOLD;
-  bool tempAlert = !isnan(temperature) && temperature >= TEMP_DANGER_THRESHOLD;
+  bool gasAlert = latestGasValue >= GAS_DANGER_THRESHOLD;
+  bool tempAlert = !isnan(latestTemperature) && latestTemperature >= TEMP_DANGER_THRESHOLD;
   bool dangerAlert = gasAlert || tempAlert || fallAlert;
 
-  Serial.println("-------------");
-
-  if (isnan(humidity) || isnan(temperature)) {
-    Serial.println("DHT ERROR");
-  } else {
-    Serial.print("Temperature: ");
-    Serial.print(temperature);
-    Serial.println(" C");
-
-    Serial.print("Humidity: ");
-    Serial.print(humidity);
-    Serial.println(" %");
+  if (shouldPrintStatus) {
+    printSlowStatus(gasAlert, tempAlert, fallAlert, dangerAlert);
   }
 
-  Serial.print("Gas Value: ");
-  Serial.println(gasValue);
-
-  Serial.print("AX: ");
-  Serial.print(AcX);
-  Serial.print(" AY: ");
-  Serial.print(AcY);
-  Serial.print(" AZ: ");
-  Serial.println(AcZ);
-
-  Serial.print("GX: ");
-  Serial.print(GyX);
-  Serial.print(" GY: ");
-  Serial.print(GyY);
-  Serial.print(" GZ: ");
-  Serial.println(GyZ);
-
-  Serial.print("Gas Alert: ");
-  Serial.println(gasAlert ? "YES" : "NO");
-  Serial.print("Temperature Alert: ");
-  Serial.println(tempAlert ? "YES" : "NO");
-  Serial.print("Fall Alert: ");
-  Serial.println(fallAlert ? "YES" : "NO");
-
   if (dangerAlert && !previousDangerAlert) {
-    sendReadingToBackend(temperature, humidity, gasValue, fallAlert, sosPressed, gasAlert, tempAlert, fallAlert);
+    sendReadingToBackend(latestTemperature, latestHumidity, latestGasValue, fallAlert, sosPressed, gasAlert, tempAlert, fallAlert);
     lastSendTime = millis();
   }
 
@@ -644,8 +700,9 @@ void loop() {
 
   if (millis() - lastSendTime >= SEND_INTERVAL) {
     lastSendTime = millis();
-    sendReadingToBackend(temperature, humidity, gasValue, fallAlert, sosPressed, gasAlert, tempAlert, fallAlert);
+    sendReadingToBackend(latestTemperature, latestHumidity, latestGasValue, fallAlert, sosPressed, gasAlert, tempAlert, fallAlert);
   }
 
   previousDangerAlert = dangerAlert;
+  delay(LOOP_DELAY_MS);
 }

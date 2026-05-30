@@ -3,7 +3,7 @@ const { thresholds } = require("../data/thresholds");
 const { maybeLogWorkerReading } = require("./sensorLogService");
 
 let ioInstance = null;
-const HELMET_OFFLINE_TIMEOUT_MS = Number(process.env.HELMET_OFFLINE_TIMEOUT_MS || 10000);
+const HELMET_OFFLINE_TIMEOUT_MS = Number(process.env.HELMET_OFFLINE_TIMEOUT_MS || 30000);
 const HELMET_PRESENCE_CHECK_MS = 1000;
 let presenceMonitor = null;
 
@@ -155,6 +155,7 @@ function updateWorkerReading(workerId, reading) {
     helmetTilted: Boolean(reading.helmetTilted ?? worker.helmetTilted),
     fallAlert: Boolean(reading.fallAlert ?? worker.fallAlert),
     gpsValid: Boolean(reading.gpsValid ?? worker.gpsValid),
+    satellites: reading.satellites === undefined ? worker.satellites : Number(reading.satellites),
     alert: Boolean(reading.alert ?? worker.alert),
     deviceTimestamp: reading.timestamp === undefined ? worker.deviceTimestamp : Number(reading.timestamp),
     deviceAlertType: reading.deviceAlertType === undefined ? worker.deviceAlertType : String(reading.deviceAlertType)
