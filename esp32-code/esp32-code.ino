@@ -99,9 +99,9 @@ const int GAS_DANGER_THRESHOLD = 1800;
 const float TEMP_DANGER_THRESHOLD = 40.0;
 
 // ================= Tested Fall Detection Thresholds =================
-const float IMPACT_THRESHOLD_G = 1.55;
-const float HARD_IMPACT_THRESHOLD_G = 2.70;
-const float ROTATION_THRESHOLD_DPS = 230.0;
+const float IMPACT_THRESHOLD_G = 1.35;
+const float HARD_IMPACT_THRESHOLD_G = 2.0;
+const float ROTATION_THRESHOLD_DPS = 170.0;
 const float MIN_ACCEL_WITH_ROTATION_G = 1.25;
 const float TILT_Z_THRESHOLD = 0.45;
 const unsigned long FALL_CONFIRMATION_DELAY_MS = 650;
