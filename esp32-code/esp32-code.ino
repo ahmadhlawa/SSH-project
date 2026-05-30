@@ -7,12 +7,12 @@
 #define MPU6050_ADDR 0x68
 
 // ================= Wi-Fi Settings =================
-const char* WIFI_SSID = "Home";
-const char* WIFI_PASSWORD = "QASSAM2002";
+const char* WIFI_SSID = "Ismail";
+const char* WIFI_PASSWORD = "ismail2025";
 
 // Backend endpoints. Use the laptop IP address, not localhost.
-const char* READINGS_URL = "http://192.168.1.8:5000/api/helmet/readings";
-const char* ALARM_STATE_URL = "http://192.168.1.8:5000/api/helmet/alarm-state";
+const char* READINGS_URL = "http://192.168.1.112:5000/api/helmet/readings";
+const char* ALARM_STATE_URL = "http://192.168.1.112:5000/api/helmet/alarm-state";
 
 // Dashboard worker mapping
 const char* WORKER_ID = "W-1001";
