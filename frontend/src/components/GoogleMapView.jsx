@@ -13,6 +13,13 @@ const defaultCenter = { lat: 31.7622, lng: 35.2654 };
 
 let googleMapsPromise;
 
+function getWorkerPosition(worker) {
+  return {
+    lat: Number(worker?.lat ?? worker?.latitude ?? worker?.location?.lat ?? worker?.position?.lat),
+    lng: Number(worker?.lng ?? worker?.longitude ?? worker?.location?.lng ?? worker?.position?.lng)
+  };
+}
+
 function loadGoogleMaps(apiKey) {
   if (window.google?.maps) return Promise.resolve(window.google.maps);
   if (googleMapsPromise) return googleMapsPromise;
@@ -99,7 +106,7 @@ export default function GoogleMapView({ workers, focusWorker }) {
 
   const center = useMemo(() => {
     const worker = focusWorker || workers[0];
-    return worker ? { lat: Number(worker.lat), lng: Number(worker.lng) } : defaultCenter;
+    return worker ? getWorkerPosition(worker) : defaultCenter;
   }, [workers, focusWorker]);
 
   useEffect(() => {
@@ -149,7 +156,14 @@ export default function GoogleMapView({ workers, focusWorker }) {
 
     workers.forEach((worker) => {
       const displayStatus = worker.isOnline ? worker.status : "OFFLINE";
-      const position = { lat: Number(worker.lat), lng: Number(worker.lng) };
+      const position = getWorkerPosition(worker);
+      console.log("[map] rendering marker coordinates", {
+        workerId: worker.id,
+        helmetId: worker.helmetId,
+        gpsValid: worker.gpsValid,
+        lat: position.lat,
+        lng: position.lng
+      });
       const marker = new maps.Marker({
         position,
         map,

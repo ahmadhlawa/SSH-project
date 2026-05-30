@@ -35,8 +35,8 @@ const char* HELMET_ID = "HLM-ESP32-001";
 #define MPU_SDA 21
 #define MPU_SCL 22
 
-#define GPS_RX 16
-#define GPS_TX 17
+#define GPS_RX 17
+#define GPS_TX 16
 
 TinyGPSPlus gps;
 HardwareSerial gpsSerial(2);
@@ -61,7 +61,7 @@ bool mpuReady = false;
 
 // ================= Timing =================
 unsigned long lastSendTime = 0;
-const unsigned long SEND_INTERVAL = 5000;
+const unsigned long SEND_INTERVAL = 10000;
 
 const unsigned long LED_FLASH_INTERVAL = 180;
 const unsigned long BUZZER_PULSE_INTERVAL = 220;
@@ -356,6 +356,7 @@ void pollBackendAlarmState() {
   HTTPClient http;
   String url = String(ALARM_STATE_URL) + "?workerId=" + String(WORKER_ID);
   http.begin(url);
+  http.setTimeout(5000);
 
   int responseCode = http.GET();
   String responseBody = http.getString();
@@ -446,6 +447,7 @@ void sendReadingToBackend(
   HTTPClient http;
 
   http.begin(READINGS_URL);
+  http.setTimeout(5000);
   http.addHeader("Content-Type", "application/json");
 
   String payload = "{";
@@ -485,7 +487,9 @@ void sendReadingToBackend(
   Serial.println("Sending payload to backend:");
   Serial.println(payload);
 
+  Serial.println("[DBG] Before HTTP POST");
   int httpResponseCode = http.POST(payload);
+  Serial.println("[DBG] After HTTP POST");
 
   Serial.print("HTTP Response Code: ");
   Serial.println(httpResponseCode);
@@ -549,7 +553,8 @@ void setup() {
 
   setAllLeds(false);
   setBuzzer(false);
-  playStartupTones();
+  // Temporarily disabled while debugging possible brownout/reset issues.
+  // playStartupTones();
 
   Wire.begin(MPU_SDA, MPU_SCL);
   Wire.setClock(100000);
@@ -562,12 +567,22 @@ void setup() {
 
 // ================= Main Loop =================
 void loop() {
+  Serial.println("[DBG] Before DHT read");
   float humidity = dht.readHumidity();
   float temperature = dht.readTemperature();
-  int gasValue = analogRead(GAS_PIN);
-  readGPS();
+  Serial.println("[DBG] After DHT read");
 
+  Serial.println("[DBG] Before gas read");
+  int gasValue = analogRead(GAS_PIN);
+  Serial.println("[DBG] After gas read");
+
+  Serial.println("[DBG] Before GPS read");
+  readGPS();
+  Serial.println("[DBG] After GPS read");
+
+  Serial.println("[DBG] Before MPU read");
   readMPU6050();
+  Serial.println("[DBG] After MPU read");
 
   bool fallAlert = detectFall();
   bool sosPressed = false;
@@ -619,10 +634,11 @@ void loop() {
     lastSendTime = millis();
   }
 
-  if (millis() - lastAlarmStatePollTime >= ALARM_STATE_POLL_INTERVAL_MS) {
-    lastAlarmStatePollTime = millis();
-    pollBackendAlarmState();
-  }
+  // Temporarily disabled while debugging ESP32 loop slowness/hangs.
+  // if (millis() - lastAlarmStatePollTime >= ALARM_STATE_POLL_INTERVAL_MS) {
+  //   lastAlarmStatePollTime = millis();
+  //   pollBackendAlarmState();
+  // }
 
   updateBuzzerAlarm(dangerAlert);
 

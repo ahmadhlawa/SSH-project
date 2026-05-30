@@ -30,6 +30,7 @@ export function SafetyProvider({ children }) {
     Promise.all([api.getWorkers(), api.getAlerts()])
       .then(([workerData, alertData]) => {
         if (!active) return;
+        console.log("[dashboard] workers API response used by map", workerData);
         setWorkers(workerData);
         setAlerts(alertData);
       })
@@ -51,12 +52,14 @@ export function SafetyProvider({ children }) {
     });
 
     socket.on("workers:init", ({ workers: socketWorkers, alerts: socketAlerts }) => {
+      console.log("[dashboard] workers:init used by map", socketWorkers);
       setWorkers(socketWorkers);
       setAlerts(socketAlerts);
       setLastRealtimeUpdate(new Date().toISOString());
     });
 
     socket.on("worker:update", (worker) => {
+      console.log("[dashboard] worker:update used by map", worker);
       setWorkers((current) => current.map((item) => (item.id === worker.id ? worker : item)));
       setLastRealtimeUpdate(new Date().toISOString());
     });

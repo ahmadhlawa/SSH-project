@@ -65,7 +65,20 @@ function validateReadingPayload(body) {
 }
 
 router.post("/readings", (req, res) => {
+  console.log("[helmet:readings] received body", req.body);
+
   const { workerId, reading, errors } = validateReadingPayload(req.body || {});
+  console.log("[helmet:readings] gps fields", {
+    workerId,
+    helmetId: reading.helmetId,
+    gpsValid: reading.gpsValid,
+    latitude: reading.latitude,
+    longitude: reading.longitude,
+    gasValue: reading.gasValue,
+    alert: reading.alert,
+    lat: reading.lat,
+    lng: reading.lng
+  });
 
   if (errors.length > 0) {
     return res.status(400).json({
@@ -91,6 +104,22 @@ router.post("/readings", (req, res) => {
   }
 
   const result = updateWorkerReading(workerId, reading);
+  console.log("[helmet:readings] latest state saved", {
+    workerId: result?.worker?.id,
+    helmetId: result?.worker?.helmetId,
+    gpsValid: result?.worker?.gpsValid,
+    latitude: result?.worker?.latitude,
+    longitude: result?.worker?.longitude,
+    lat: result?.worker?.lat,
+    lng: result?.worker?.lng,
+    lastSeen: result?.worker?.lastSeen,
+    alert: result?.worker?.alert,
+    alertType: result?.worker?.alertType,
+    gasValue: result?.worker?.gasValue,
+    temperature: result?.worker?.temperature,
+    humidity: result?.worker?.humidity,
+    lastUpdate: result?.worker?.lastUpdate
+  });
 
   return res.status(201).json({
     ...result,

@@ -129,6 +129,14 @@ function createAlert(worker) {
 function updateWorkerReading(workerId, reading) {
   const worker = getWorkerById(workerId);
   if (!worker) return null;
+  const nextLat = reading.lat === undefined ? undefined : Number(reading.lat);
+  const nextLng = reading.lng === undefined ? undefined : Number(reading.lng);
+  const hasValidGpsLocation =
+    reading.gpsValid !== false &&
+    Number.isFinite(nextLat) &&
+    Number.isFinite(nextLng) &&
+    nextLat !== 0 &&
+    nextLng !== 0;
 
   const nextReading = {
     temperature: Number(reading.temperature ?? worker.temperature),
@@ -154,14 +162,21 @@ function updateWorkerReading(workerId, reading) {
 
   const statusResult = evaluateStatus(nextReading);
   const previousStatus = worker.status;
+  const lastSeen = new Date().toISOString();
+  const lat = hasValidGpsLocation ? nextLat : worker.lat;
+  const lng = hasValidGpsLocation ? nextLng : worker.lng;
 
   Object.assign(worker, nextReading, statusResult, {
+    workerId: worker.id,
     helmetId: reading.helmetId === undefined ? worker.helmetId : String(reading.helmetId),
     isOnline: true,
     offlineAt: null,
-    lat: reading.gpsValid === false || reading.lat === undefined ? worker.lat : Number(reading.lat),
-    lng: reading.gpsValid === false || reading.lng === undefined ? worker.lng : Number(reading.lng),
-    lastUpdate: new Date().toISOString()
+    latitude: lat,
+    longitude: lng,
+    lat,
+    lng,
+    lastSeen,
+    lastUpdate: lastSeen
   });
 
   const closedAlerts = worker.status === "SAFE" && previousStatus !== "SAFE" ? closeOpenAlertCycles(worker.id) : [];
