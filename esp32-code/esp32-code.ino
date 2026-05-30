@@ -35,15 +35,16 @@ const char* HELMET_ID = "HLM-ESP32-001";
 #define MPU_SDA 21
 #define MPU_SCL 22
 
-#define GPS_RX 17
-#define GPS_TX 16
+#define GPS_RX 16
+#define GPS_TX 17
 
 TinyGPSPlus gps;
 HardwareSerial gpsSerial(2);
 
+bool gpsValid = false;
 double gpsLat = 0.0;
 double gpsLng = 0.0;
-bool gpsValid = false;
+double gpsAltitude = 0.0;
 uint32_t gpsSatellites = 0;
 
 DHT dht(DHTPIN, DHTTYPE);
@@ -437,13 +438,33 @@ String getAlertType(bool gasAlert, bool tempAlert, bool fallAlert) {
   return "none";
 }
 
+void readGPS() {
+  while (gpsSerial.available() > 0) {
+    gps.encode(gpsSerial.read());
+  }
+
+  if (gps.satellites.isValid()) {
+    gpsSatellites = gps.satellites.value();
+  }
+
+  if (gps.altitude.isValid()) {
+    gpsAltitude = gps.altitude.meters();
+  }
+
+  if (gps.location.isUpdated()) {
+    gpsValid = gps.location.isValid();
+    if (gpsValid) {
+      gpsLat = gps.location.lat();
+      gpsLng = gps.location.lng();
+    }
+  }
+}
+
 void readDHTIfDue() {
   unsigned long now = millis();
   if (lastDhtReadTime != 0 && now - lastDhtReadTime < DHT_READ_INTERVAL) return;
 
   lastDhtReadTime = now;
-  if (shouldPrintStatus) Serial.println("[DBG] Before DHT read");
-
   float humidity = dht.readHumidity();
   float temperature = dht.readTemperature();
 
@@ -454,14 +475,12 @@ void readDHTIfDue() {
   } else {
     latestDhtValid = false;
   }
-
-  if (shouldPrintStatus) Serial.println("[DBG] After DHT read");
 }
 
 void printSlowStatus(bool gasAlert, bool tempAlert, bool fallAlert, bool dangerAlert) {
   Serial.println("-------------");
 
-  if (latestDhtValid || (!isnan(latestHumidity) && !isnan(latestTemperature))) {
+  if (!isnan(latestHumidity) && !isnan(latestTemperature)) {
     Serial.print("Temperature: ");
     Serial.print(latestTemperature);
     Serial.println(" C");
@@ -470,7 +489,7 @@ void printSlowStatus(bool gasAlert, bool tempAlert, bool fallAlert, bool dangerA
     Serial.print(latestHumidity);
     Serial.println(" %");
   } else {
-    Serial.println("DHT ERROR - keeping last valid values if available");
+    Serial.println("DHT ERROR");
   }
 
   Serial.print("Gas Value: ");
@@ -478,12 +497,12 @@ void printSlowStatus(bool gasAlert, bool tempAlert, bool fallAlert, bool dangerA
 
   Serial.print("GPS Valid: ");
   Serial.println(gpsValid ? "YES" : "NO");
-  Serial.print("GPS Satellites: ");
-  Serial.println(gpsSatellites);
   Serial.print("Latitude: ");
   Serial.println(gpsLat, 6);
   Serial.print("Longitude: ");
   Serial.println(gpsLng, 6);
+  Serial.print("Satellites: ");
+  Serial.println(gpsSatellites);
 
   Serial.print("AX: ");
   Serial.print(AcX);
@@ -556,12 +575,13 @@ void sendReadingToBackend(
   payload += "\"alertType\":\"" + alertType + "\",";
   payload += "\"accelG\":" + String(latestAccelG, 3) + ",";
   payload += "\"gyroDPS\":" + String(latestGyroDPS, 1) + ",";
-  payload += "\"gpsValid\":" + String(gpsValid ? "true":"false") + ",";
-  payload += "\"latitude\":" + String(gpsLat,6) + ",";
-  payload += "\"longitude\":" + String(gpsLng,6) + ",";
-  payload += "\"lat\":" + String(gpsLat,6) + ",";
-  payload += "\"lng\":" + String(gpsLng,6) + ",";
+  payload += "\"gpsValid\":" + String(gpsValid ? "true" : "false") + ",";
+  payload += "\"latitude\":" + String(gpsLat, 6) + ",";
+  payload += "\"longitude\":" + String(gpsLng, 6) + ",";
+  payload += "\"lat\":" + String(gpsLat, 6) + ",";
+  payload += "\"lng\":" + String(gpsLng, 6) + ",";
   payload += "\"satellites\":" + String(gpsSatellites) + ",";
+  payload += "\"gpsAltitude\":" + String(gpsAltitude, 2) + ",";
   payload += "\"helmetTilted\":" + String(latestHelmetTilted ? "true" : "false") + ",";
   payload += "\"timestamp\":" + String(millis()) + ",";
   payload += "\"acX\":" + String(AcX) + ",";
@@ -575,9 +595,7 @@ void sendReadingToBackend(
   Serial.println("Sending payload to backend:");
   Serial.println(payload);
 
-  Serial.println("[DBG] Before HTTP POST");
   int httpResponseCode = http.POST(payload);
-  Serial.println("[DBG] After HTTP POST");
 
   Serial.print("HTTP Response Code: ");
   Serial.println(httpResponseCode);
@@ -590,34 +608,6 @@ void sendReadingToBackend(
   }
 
   http.end();
-}
-
-//================== gps ===================
-
-void readGPS() {
-  while (gpsSerial.available() > 0) {
-    gps.encode(gpsSerial.read());
-  }
-
-  if (gps.satellites.isValid()) {
-    gpsSatellites = gps.satellites.value();
-  }
-
-  if (gps.location.isUpdated()) {
-    gpsLat = gps.location.lat();
-    gpsLng = gps.location.lng();
-    gpsValid = gps.location.isValid();
-
-    if (shouldPrintStatus) {
-      Serial.println("GPS Updated");
-      Serial.print("Lat: ");
-      Serial.println(gpsLat, 6);
-      Serial.print("Lng: ");
-      Serial.println(gpsLng, 6);
-      Serial.print("Satellites: ");
-      Serial.println(gpsSatellites);
-    }
-  }
 }
 
 // ================= Setup =================
@@ -660,19 +650,10 @@ void loop() {
   shouldPrintStatus = now - lastSerialPrintTime >= SERIAL_PRINT_INTERVAL;
   if (shouldPrintStatus) lastSerialPrintTime = now;
 
-  if (shouldPrintStatus) Serial.println("[DBG] Before GPS read");
   readGPS();
-  if (shouldPrintStatus) Serial.println("[DBG] After GPS read");
-
   readDHTIfDue();
-
-  if (shouldPrintStatus) Serial.println("[DBG] Before gas read");
   latestGasValue = analogRead(GAS_PIN);
-  if (shouldPrintStatus) Serial.println("[DBG] After gas read");
-
-  if (shouldPrintStatus) Serial.println("[DBG] Before MPU read");
   readMPU6050();
-  if (shouldPrintStatus) Serial.println("[DBG] After MPU read");
 
   bool fallAlert = detectFall();
   bool sosPressed = false;
@@ -690,11 +671,10 @@ void loop() {
     lastSendTime = millis();
   }
 
-  // Temporarily disabled while debugging ESP32 loop slowness/hangs.
-  // if (millis() - lastAlarmStatePollTime >= ALARM_STATE_POLL_INTERVAL_MS) {
-  //   lastAlarmStatePollTime = millis();
-  //   pollBackendAlarmState();
-  // }
+  if (millis() - lastAlarmStatePollTime >= ALARM_STATE_POLL_INTERVAL_MS) {
+    lastAlarmStatePollTime = millis();
+    pollBackendAlarmState();
+  }
 
   updateBuzzerAlarm(dangerAlert);
 

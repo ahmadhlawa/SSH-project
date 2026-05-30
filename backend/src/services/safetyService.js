@@ -156,6 +156,7 @@ function updateWorkerReading(workerId, reading) {
     fallAlert: Boolean(reading.fallAlert ?? worker.fallAlert),
     gpsValid: Boolean(reading.gpsValid ?? worker.gpsValid),
     satellites: reading.satellites === undefined ? worker.satellites : Number(reading.satellites),
+    gpsAltitude: reading.gpsAltitude === undefined ? worker.gpsAltitude : Number(reading.gpsAltitude),
     alert: Boolean(reading.alert ?? worker.alert),
     deviceTimestamp: reading.timestamp === undefined ? worker.deviceTimestamp : Number(reading.timestamp),
     deviceAlertType: reading.deviceAlertType === undefined ? worker.deviceAlertType : String(reading.deviceAlertType)
