@@ -13,7 +13,7 @@ const char* WIFI_PASSWORD = "ismail2025";
 
 // Backend endpoints. Use the laptop IP address, not localhost.
 const char* READINGS_URL = "https://ssh-project-1.onrender.com/api/helmet/readings";
-const char* ALARM_STATE_URL = "https://ssh-project-1.onrender.com/api/helmet/alarm-state?workerId=W-1001";
+const char* ALARM_STATE_URL = "https://ssh-project-1.onrender.com/api/helmet/alarm-state";
 
 // Dashboard worker mapping
 const char* WORKER_ID = "W-1001";
@@ -61,7 +61,7 @@ bool mpuReady = false;
 
 // ================= Timing =================
 unsigned long lastSendTime = 0;
-const unsigned long SEND_INTERVAL = 3000;
+const unsigned long SEND_INTERVAL = 5000;
 
 const unsigned long LED_FLASH_INTERVAL = 180;
 const unsigned long BUZZER_PULSE_INTERVAL = 220;
