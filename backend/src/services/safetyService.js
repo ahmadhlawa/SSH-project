@@ -146,6 +146,7 @@ function updateWorkerReading(workerId, reading) {
     gyroDPS: reading.gyroDPS === undefined ? worker.gyroDPS : Number(reading.gyroDPS),
     helmetTilted: Boolean(reading.helmetTilted ?? worker.helmetTilted),
     fallAlert: Boolean(reading.fallAlert ?? worker.fallAlert),
+    gpsValid: Boolean(reading.gpsValid ?? worker.gpsValid),
     alert: Boolean(reading.alert ?? worker.alert),
     deviceTimestamp: reading.timestamp === undefined ? worker.deviceTimestamp : Number(reading.timestamp),
     deviceAlertType: reading.deviceAlertType === undefined ? worker.deviceAlertType : String(reading.deviceAlertType)
@@ -158,8 +159,8 @@ function updateWorkerReading(workerId, reading) {
     helmetId: reading.helmetId === undefined ? worker.helmetId : String(reading.helmetId),
     isOnline: true,
     offlineAt: null,
-    lat: reading.lat === undefined ? worker.lat : Number(reading.lat),
-    lng: reading.lng === undefined ? worker.lng : Number(reading.lng),
+    lat: reading.gpsValid === false || reading.lat === undefined ? worker.lat : Number(reading.lat),
+    lng: reading.gpsValid === false || reading.lng === undefined ? worker.lng : Number(reading.lng),
     lastUpdate: new Date().toISOString()
   });
 

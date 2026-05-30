@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <DHT.h>
 #include <math.h>
+#include <TinyGPSPlus.h>
 
 #define MPU6050_ADDR 0x68
 
@@ -11,8 +12,8 @@ const char* WIFI_SSID = "Ismail";
 const char* WIFI_PASSWORD = "ismail2025";
 
 // Backend endpoints. Use the laptop IP address, not localhost.
-const char* READINGS_URL = "http://192.168.1.112:5000/api/helmet/readings";
-const char* ALARM_STATE_URL = "http://192.168.1.112:5000/api/helmet/alarm-state";
+const char* READINGS_URL = "https://ssh-project-1.onrender.com/api/helmet/readings";
+const char* ALARM_STATE_URL = "https://ssh-project-1.onrender.com/api/helmet/alarm-state?workerId=W-1001";
 
 // Dashboard worker mapping
 const char* WORKER_ID = "W-1001";
@@ -33,6 +34,16 @@ const char* HELMET_ID = "HLM-ESP32-001";
 
 #define MPU_SDA 21
 #define MPU_SCL 22
+
+#define GPS_RX 16
+#define GPS_TX 17
+
+TinyGPSPlus gps;
+HardwareSerial gpsSerial(2);
+
+double gpsLat = 0.0;
+double gpsLng = 0.0;
+bool gpsValid = false;
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -458,6 +469,9 @@ void sendReadingToBackend(
   payload += "\"alertType\":\"" + alertType + "\",";
   payload += "\"accelG\":" + String(latestAccelG, 3) + ",";
   payload += "\"gyroDPS\":" + String(latestGyroDPS, 1) + ",";
+  payload += "\"gpsValid\":" + String(gpsValid ? "true":"false") + ",";
+  payload += "\"latitude\":" + String(gpsLat,6) + ",";
+  payload += "\"longitude\":" + String(gpsLng,6) + ",";
   payload += "\"helmetTilted\":" + String(latestHelmetTilted ? "true" : "false") + ",";
   payload += "\"timestamp\":" + String(millis()) + ",";
   payload += "\"acX\":" + String(AcX) + ",";
@@ -486,9 +500,37 @@ void sendReadingToBackend(
   http.end();
 }
 
+//================== gps ===================
+
+void readGPS() {
+
+  while (gpsSerial.available() > 0) {
+
+    gps.encode(gpsSerial.read());
+
+  }
+
+  if (gps.location.isUpdated()) {
+
+    gpsLat = gps.location.lat();
+    gpsLng = gps.location.lng();
+    gpsValid = gps.location.isValid();
+
+    Serial.println("GPS Updated");
+
+    Serial.print("Lat: ");
+    Serial.println(gpsLat,6);
+
+    Serial.print("Lng: ");
+    Serial.println(gpsLng,6);
+
+  }
+}
+
 // ================= Setup =================
 void setup() {
   Serial.begin(115200);
+  gpsSerial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
   delay(300);
 
   Serial.println();
@@ -523,6 +565,7 @@ void loop() {
   float humidity = dht.readHumidity();
   float temperature = dht.readTemperature();
   int gasValue = analogRead(GAS_PIN);
+  readGPS();
 
   readMPU6050();
 

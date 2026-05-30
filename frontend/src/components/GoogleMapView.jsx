@@ -9,7 +9,7 @@ const statusColors = {
   OFFLINE: "#6b7280"
 };
 
-const defaultCenter = { lat: 31.9544, lng: 35.9106 };
+const defaultCenter = { lat: 31.7622, lng: 35.2654 };
 
 let googleMapsPromise;
 

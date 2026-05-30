@@ -35,8 +35,8 @@ function validateReadingPayload(body) {
   }
 
   const reading = {};
-  const numericFields = ["temperature", "humidity", "gasValue", "lat", "lng", "acX", "acY", "acZ", "gyX", "gyY", "gyZ", "accelG", "gyroDPS", "timestamp"];
-  const booleanFields = ["fallDetected", "fall", "fallAlert", "sosPressed", "alert", "helmetTilted"];
+  const numericFields = ["temperature", "humidity", "gasValue", "lat", "lng", "latitude", "longitude", "acX", "acY", "acZ", "gyX", "gyY", "gyZ", "accelG", "gyroDPS", "timestamp"];
+  const booleanFields = ["fallDetected", "fall", "fallAlert", "sosPressed", "alert", "helmetTilted", "gpsValid"];
 
   numericFields.forEach((field) => {
     const value = parseOptionalNumber(body, field, errors);
@@ -50,6 +50,12 @@ function validateReadingPayload(body) {
 
   if (reading.fallDetected === undefined && reading.fall !== undefined) {
     reading.fallDetected = reading.fall;
+  }
+  if (reading.lat === undefined && reading.latitude !== undefined) {
+    reading.lat = reading.latitude;
+  }
+  if (reading.lng === undefined && reading.longitude !== undefined) {
+    reading.lng = reading.longitude;
   }
 
   if (isProvided(body.helmetId)) reading.helmetId = String(body.helmetId);
