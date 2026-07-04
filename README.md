@@ -6,6 +6,11 @@ React + Node.js realtime IoT safety monitoring dashboard for ESP32 smart helmets
 
 The system monitors industrial or warehouse workers wearing smart helmets. Each helmet can send temperature, humidity, gas, fall detection, SOS, and location readings to the backend. Supervisors use the dashboard to watch worker status, view locations on Google Maps, receive realtime alerts, and respond to emergencies.
 
+## Project presentation
+
+link: https://smart-safety-helmet-presentation-488923514554.us-west1.run.app
+
+
 ## Features
 
 - Realtime dashboard for SAFE, WARNING, and DANGER worker states
